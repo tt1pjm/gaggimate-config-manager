@@ -57,14 +57,17 @@ jobs:
         run: |
           mkdir -p final-pages-site/controller final-pages-site/display
           
-          # Copy your custom static web pages into deployment context
+          # Copy your main HTML page
           cp config-repo/index.html final-pages-site/
+          
+          # CORRECTED: Maps the manifests from the registry config folder to their deployment directories
           cp config-repo/config/manifest-controller.json final-pages-site/controller/manifest.json
           cp config-repo/config/manifest-display.json final-pages-site/display/manifest.json
           
-          # Move compiled firmware components into matching asset layout paths
+          # Copy compiled firmware binaries into the deployment folders
           cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/
           cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/
+
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
