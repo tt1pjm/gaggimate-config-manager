@@ -11,7 +11,7 @@
         .btn-group { margin: 25px 0; display: flex; justify-content: space-around; }
         esp-web-install-button { --esp-button-bg-color: #00e676; --esp-button-text-color: #121212; }
     </style>
-    <!-- Imports the official ESP Web Tools library used for browser flashing -->
+    <!-- CORRECTED: Removed the ?module script break string -->
     <script type="module" src="https://unpkg.com"></script>
 </head>
 <body>
@@ -22,11 +22,11 @@
         
         <div class="btn-group">
             <div>
-                <h3>Controller Module</h3>
+                <h3>Controller</h3>
                 <esp-web-install-button manifest="controller/manifest.json"></esp-web-install-button>
             </div>
             <div>
-                <h3>Display Module</h3>
+                <h3>Display</h3>
                 <esp-web-install-button manifest="display/manifest.json"></esp-web-install-button>
             </div>
         </div>
