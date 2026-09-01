@@ -59,8 +59,8 @@ jobs:
           # Execute compilation inside the directory containing platformio.ini
           cd gaggimate-src
           
-          # This command triggers the compiler and natively maps your pio_prebuild scripts
-          pio run
+          # Target only your physical hardware variables
+          pio run -e controller -e display-waveshare-1.75-amoled
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
