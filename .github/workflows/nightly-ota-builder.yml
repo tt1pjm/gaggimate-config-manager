@@ -60,7 +60,7 @@ jobs:
           cd gaggimate-src
           
           # Target only your physical hardware variables
-          pio run -e controller -e display-waveshare-1.75-amoled
+          pio run -e controller -e display
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
