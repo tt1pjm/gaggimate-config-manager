@@ -55,19 +55,19 @@ jobs:
 
       - name: Prepare WebUSB and OTA Assets
         run: |
+          # Build empty, isolated structural staging environments
           mkdir -p final-pages-site/controller final-pages-site/display
           
-          # Copy your main HTML page
+          # Deploy your parent landing interface page
           cp config-repo/index.html final-pages-site/
           
-          # CORRECTED: Maps the manifests from the registry config folder to their deployment directories
+          # Place the specific target structural manifests into their respective endpoints
           cp config-repo/config/manifest-controller.json final-pages-site/controller/manifest.json
           cp config-repo/config/manifest-display.json final-pages-site/display/manifest.json
           
-          # Copy compiled firmware binaries into the deployment folders
-          cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/
-          cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/
-
+          # Force copy matching binaries into flat directory alignments directly beside the manifests
+          cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/firmware.bin
+          cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/firmware.bin
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
