@@ -1,9 +1,9 @@
 name: Nightly Custom Board OTA Deploy
 
 on:
-  workflow_dispatch: # Gives you a manual "Run workflow" button on GitHub
+  workflow_dispatch:
   schedule:
-    - cron: '0 2 * * *' # Automatically runs nightly at 2:00 AM UTC
+    - cron: '0 2 * * *'
 
 permissions:
   contents: read
@@ -14,45 +14,37 @@ jobs:
   sync-patch-build:
     runs-on: ubuntu-latest
     steps:
-      # 1. DOWNLOAD YOUR CUSTOM SCRIPTS & CONFIG FROM YOUR REPO
-      - name: Checkout Tracker Configuration
+      - name: Checkout Configuration Registry
         uses: actions/checkout@v4
         with:
           path: config-repo
 
-      # 2. DOWNLOAD THE LIVE, FRESH GAGGIMATE SOURCE CODE
-      - name: Checkout Clean Upstream Gaggimate
+      - name: Checkout Upstream Gaggimate
         uses: actions/checkout@v4
         with:
           repository: jniebuhr/gaggimate
           ref: master
           path: gaggimate-src
 
-      # 3. PATCH THE FILES IN-MEMORY RIGHT BEFORE THE BUILD
       - name: Inject and Apply Board Overrides
         run: |
-          echo "Injecting pin definitions and custom scripts..."
-          
-          # Recreate the expected script/config structure inside the fresh code
+          # Create targets inside the gaggimate source path context
           mkdir -p gaggimate-src/config gaggimate-src/scripts
           
-          # Copy your custom JSON configuration
+          # Copy your custom configurations into the upstream location
           cp config-repo/config/board_override.json gaggimate-src/config/
-          
-          # Copy all of your scripts to the clean source folder
           cp config-repo/scripts/* gaggimate-src/scripts/
           
-          # Navigate into the clean project directory to run scripts
+          # Move inside the project root where platformio.ini lives
           cd gaggimate-src
           chmod +x scripts/apply_board_override_patch.sh
           
-          # Step A: Run your generator to output the header (.h) files
+          # Execute code generation targets relative to the project root
           python3 scripts/generate_board_override.py
           
-          # Step B: Run your shell script to patch GaggiMateController.cpp
+          # The bash script executes correctly because it finds the relative 'lib/' folder here
           ./scripts/apply_board_override_patch.sh
 
-      # 4. SET UP THE COMPILER ENVIRONMENT
       - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
@@ -61,16 +53,15 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      - name: Install PlatformIO
-        run: pip install platformio
-
-      # 5. COMPILE ENTIRE MONOREPO (Controller & Display)
-      - name: Build All Firmware Targets
+      - name: Install PlatformIO and Build
         run: |
+          pip install platformio
+          # Execute compilation inside the directory containing platformio.ini
           cd gaggimate-src
+          
+          # This command triggers the compiler and natively maps your pio_prebuild scripts
           pio run
 
-      # 6. DEPLOY BOTH COMPILED BINARIES STRAIGHT TO GITHUB PAGES
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
