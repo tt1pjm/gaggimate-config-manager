@@ -57,16 +57,19 @@ jobs:
         run: |
           mkdir -p final-pages-site
           
-          # Copy the original web flasher site UI from upstream docs
-          if [ -d "gaggimate-src/docs" ]; then
+          # Copy the core flashing web tool directly to the root folder
+          if [ -d "gaggimate-src/docs/flashing" ]; then
+            cp -r gaggimate-src/docs/flashing/* final-pages-site/
+          else
+            # Fallback if directories shifted upstream
             cp -r gaggimate-src/docs/* final-pages-site/
           fi
           
-          # Create path layouts matching where the flasher and OTA looks
+          # Create matching directory layouts where the code and web flasher look
           mkdir -p final-pages-site/firmware/display final-pages-site/firmware/controller
           mkdir -p final-pages-site/controller final-pages-site/display
           
-          # Copy compiled binaries to all required directory variants
+          # Copy compiled binaries to all necessary paths
           cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/firmware/controller/
           cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/firmware/display/
           cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/
