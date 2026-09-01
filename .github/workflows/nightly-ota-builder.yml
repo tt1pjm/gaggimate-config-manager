@@ -1,0 +1,81 @@
+name: Nightly Custom Board OTA Deploy
+
+on:
+  workflow_dispatch: # Gives you a manual "Run workflow" button on GitHub
+  schedule:
+    - cron: '0 2 * * *' # Automatically runs nightly at 2:00 AM UTC
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  sync-patch-build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. DOWNLOAD YOUR CUSTOM SCRIPTS & CONFIG FROM YOUR REPO
+      - name: Checkout Tracker Configuration
+        uses: actions/checkout@v4
+        with:
+          path: config-repo
+
+      # 2. DOWNLOAD THE LIVE, FRESH GAGGIMATE SOURCE CODE
+      - name: Checkout Clean Upstream Gaggimate
+        uses: actions/checkout@v4
+        with:
+          repository: jniebuhr/gaggimate
+          ref: master
+          path: gaggimate-src
+
+      # 3. PATCH THE FILES IN-MEMORY RIGHT BEFORE THE BUILD
+      - name: Inject and Apply Board Overrides
+        run: |
+          echo "Injecting pin definitions and custom scripts..."
+          
+          # Recreate the expected script/config structure inside the fresh code
+          mkdir -p gaggimate-src/config gaggimate-src/scripts
+          
+          # Copy your custom JSON configuration
+          cp config-repo/config/board_override.json gaggimate-src/config/
+          
+          # Copy all of your scripts to the clean source folder
+          cp config-repo/scripts/* gaggimate-src/scripts/
+          
+          # Navigate into the clean project directory to run scripts
+          cd gaggimate-src
+          chmod +x scripts/apply_board_override_patch.sh
+          
+          # Step A: Run your generator to output the header (.h) files
+          python3 scripts/generate_board_override.py
+          
+          # Step B: Run your shell script to patch GaggiMateController.cpp
+          ./scripts/apply_board_override_patch.sh
+
+      # 4. SET UP THE COMPILER ENVIRONMENT
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            gaggimate-src/.pio
+          key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      # 5. COMPILE ENTIRE MONOREPO (Controller & Display)
+      - name: Build All Firmware Targets
+        run: |
+          cd gaggimate-src
+          pio run
+
+      # 6. DEPLOY BOTH COMPILED BINARIES STRAIGHT TO GITHUB PAGES
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: gaggimate-src/.pio/build/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
