@@ -53,21 +53,19 @@ jobs:
           cd gaggimate-src
           pio run -e controller -e display
 
-      # Re-aligns files into standard format for browser WebUSB installers
       - name: Prepare WebUSB and OTA Assets
         run: |
           mkdir -p final-pages-site/controller final-pages-site/display
           
-          # A: Copy your custom static web pages into deployment context
+          # Copy your custom static web pages into deployment context
           cp config-repo/index.html final-pages-site/
           cp config-repo/config/manifest-controller.json final-pages-site/controller/manifest.json
           cp config-repo/config/manifest-display.json final-pages-site/display/manifest.json
           
-          # B: Move compiled firmware components into matching asset layout paths
+          # Move compiled firmware components into matching asset layout paths
           cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/
           cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/
 
-       Eagle: Upload Pages Artifact
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
