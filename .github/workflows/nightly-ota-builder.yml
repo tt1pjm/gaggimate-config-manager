@@ -28,21 +28,15 @@ jobs:
 
       - name: Inject and Apply Board Overrides
         run: |
-          # Create targets inside the gaggimate source path context
           mkdir -p gaggimate-src/config gaggimate-src/scripts
           
-          # Copy your custom configurations into the upstream location
           cp config-repo/config/board_override.json gaggimate-src/config/
           cp config-repo/scripts/* gaggimate-src/scripts/
           
-          # Move inside the project root where platformio.ini lives
           cd gaggimate-src
           chmod +x scripts/apply_board_override_patch.sh
           
-          # Execute code generation targets relative to the project root
           python3 scripts/generate_board_override.py
-          
-          # The bash script executes correctly because it finds the relative 'lib/' folder here
           ./scripts/apply_board_override_patch.sh
 
       - name: Cache PlatformIO
@@ -56,16 +50,32 @@ jobs:
       - name: Install PlatformIO and Build
         run: |
           pip install platformio
-          # Execute compilation inside the directory containing platformio.ini
           cd gaggimate-src
-          
-          # Target only your physical hardware variables
           pio run -e controller -e display
+
+      - name: Prepare WebUSB and OTA Assets
+        run: |
+          mkdir -p final-pages-site
+          
+          # Copy the original web flasher site UI from upstream docs
+          if [ -d "gaggimate-src/docs" ]; then
+            cp -r gaggimate-src/docs/* final-pages-site/
+          fi
+          
+          # Create path layouts matching where the flasher and OTA looks
+          mkdir -p final-pages-site/firmware/display final-pages-site/firmware/controller
+          mkdir -p final-pages-site/controller final-pages-site/display
+          
+          # Copy compiled binaries to all required directory variants
+          cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/firmware/controller/
+          cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/firmware/display/
+          cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/
+          cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: gaggimate-src/.pio/build/
+          path: final-pages-site/
 
       - name: Deploy to GitHub Pages
         id: deployment
