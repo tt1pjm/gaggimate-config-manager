@@ -55,19 +55,24 @@ jobs:
 
       - name: Prepare WebUSB and OTA Assets
         run: |
-          # Build empty, isolated structural staging environments
           mkdir -p final-pages-site/controller final-pages-site/display
           
-          # Deploy your parent landing interface page
+          # Deploy your primary user panel interface
           cp config-repo/index.html final-pages-site/
           
-          # Place the specific target structural manifests into their respective endpoints
-          cp config-repo/config/manifest-controller.json final-pages-site/controller/manifest.json
-          cp config-repo/config/manifest-display.json final-pages-site/display/manifest.json
+          # Position target configuration layouts
+          cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
+          cp config-repo/display/manifest.json final-pages-site/display/manifest.json
           
-          # Force copy matching binaries into flat directory alignments directly beside the manifests
+          # 1. EXTRACT BUNDLED COMPILER OUTPUTS FOR CONTROLLER
           cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/firmware.bin
+          cp gaggimate-src/.pio/build/controller/bootloader.bin final-pages-site/controller/bootloader.bin
+          cp gaggimate-src/.pio/build/controller/partitions.bin final-pages-site/controller/partitions.bin
+          
+          # 2. EXTRACT BUNDLED COMPILER OUTPUTS FOR DISPLAY
           cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/firmware.bin
+          cp gaggimate-src/.pio/build/display/bootloader.bin final-pages-site/display/bootloader.bin
+          cp gaggimate-src/.pio/build/display/partitions.bin final-pages-site/display/partitions.bin
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
