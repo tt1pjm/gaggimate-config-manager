@@ -31,26 +31,38 @@ jobs:
         with:
           node-version: '18'
 
-      # ROBUST FIX: Installs and compiles WebUI explicitly to bypass silent bash failures
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
-          
-          # Force execute frontend dependency compilation manually
           if [ -d "web" ]; then
             cd web
             npm ci
             npm run build
             cd ..
           fi
-          
-          # Execute original bundling utility script to ensure compression and asset mapping
           if [ -f "scripts/build_webui.sh" ]; then
             chmod +x scripts/build_webui.sh
             ./scripts/build_webui.sh
           fi
 
-      - name: Inject and Apply Board Overrides
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            gaggimate-src/.pio
+          key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
+
+      - name: Install PlatformIO and Build Display Unpatched
+        run: |
+          pip install platformio
+          cd gaggimate-src
+          
+          # Build display natively while the shared GaggiMateController library is completely clean
+          pio run -e display
+
+      # MOVED STEP: Board overrides are now injected only after the display finishes compiling
+      - name: Inject and Apply Board Overrides for Controller
         run: |
           mkdir -p gaggimate-src/config gaggimate-src/scripts
           
@@ -63,21 +75,10 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
 
-      - name: Cache PlatformIO
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.platformio
-            gaggimate-src/.pio
-          key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
-
-      - name: Install PlatformIO and Build
+      - name: Compile Patched Controller Firmware
         run: |
-          pip install platformio
           cd gaggimate-src
-          
-          # Compiles targets now that webassets folders are securely populated
-          pio run -e display
+          # Compiles the controller using your specific custom pin definitions
           pio run -e controller
 
       - name: Prepare WebUSB and OTA Assets
@@ -97,3 +98,12 @@ jobs:
           cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/firmware.bin
           cp gaggimate-src/.pio/build/display/bootloader.bin final-pages-site/display/bootloader.bin
           cp gaggimate-src/.pio/build/display/partitions.bin final-pages-site/display/partitions.bin
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: final-pages-site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
