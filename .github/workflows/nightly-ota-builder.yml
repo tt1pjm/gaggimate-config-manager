@@ -83,6 +83,11 @@ jobs:
 
       - name: Prepare WebUSB and OTA Assets
         run: |
+          # DIAGNOSTIC STEP: Print the exact file names and folders PlatformIO actually generated
+          echo "=== ACTUAL PLATFORMIO BUILD FOLDERS ==="
+          ls -R gaggimate-src/.pio/build/
+          echo "========================================"
+          
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cp config-repo/index.html final-pages-site/
