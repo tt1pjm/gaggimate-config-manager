@@ -31,6 +31,7 @@ jobs:
         with:
           node-version: '18'
 
+      # FIXED TRANSITION: Compiles frontend app asset nodes manually to force file generation
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
@@ -40,6 +41,9 @@ jobs:
             npm run build
             cd ..
           fi
+          
+          # Force create expected destination directories and invoke script manually
+          mkdir -p src/display/webassets
           if [ -f "scripts/build_webui.sh" ]; then
             chmod +x scripts/build_webui.sh
             ./scripts/build_webui.sh
@@ -53,15 +57,15 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
+      # FIXED COMPILER PARAMS: Standardized execution loop tracking display compile metrics natively
       - name: Install PlatformIO and Build Display Unpatched
         run: |
           pip install platformio
           cd gaggimate-src
           
-          # Force build and print errors explicitly if it crashes
-          pio run -e display || (echo "=== DISPLAY COMPILATION FAILED CRITICAL LOGS ===" && cat .pio/build/display/program.log || true; exit 1)
+          # Run the main display environment compiler natively
+          pio run -e display
 
-      # MOVED STEP: Board overrides are now injected only after the display finishes compiling
       - name: Inject and Apply Board Overrides for Controller
         run: |
           mkdir -p gaggimate-src/config gaggimate-src/scripts
@@ -78,16 +82,10 @@ jobs:
       - name: Compile Patched Controller Firmware
         run: |
           cd gaggimate-src
-          # Compiles the controller using your specific custom pin definitions
           pio run -e controller
 
       - name: Prepare WebUSB and OTA Assets
         run: |
-          # DIAGNOSTIC STEP: Print the exact file names and folders PlatformIO actually generated
-          echo "=== ACTUAL PLATFORMIO BUILD FOLDERS ==="
-          ls -R gaggimate-src/.pio/build/
-          echo "========================================"
-          
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cp config-repo/index.html final-pages-site/
@@ -103,12 +101,3 @@ jobs:
           cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/firmware.bin
           cp gaggimate-src/.pio/build/display/bootloader.bin final-pages-site/display/bootloader.bin
           cp gaggimate-src/.pio/build/display/partitions.bin final-pages-site/display/partitions.bin
-
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: final-pages-site/
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
