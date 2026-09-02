@@ -55,27 +55,27 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # UNIFIED RUN BLOCK: Prevents PlatformIO from wiping the workspace cache between actions
+      # UNIFIED RUN BLOCK: Builds and packages both targets out of their precise native output directories
       - name: Compile and Package All Firmware Targets
         run: |
           pip install platformio
           
-          # Initialize flat destination directories
+          # Initialize target deployment directories
           mkdir -p final-pages-site/controller final-pages-site/display
           
-          # 1. Compile the display natively while the shared libraries are clean
+          # 1. Compile display natively from the core upstream framework branch
           cd gaggimate-src
           pio run -e display
           
-          # Extract the display binary pieces instantly before any workspace cleanup occurs
+          # Absolute path extraction using the real LilyGo-T-RGB directory mapping
           cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # Return to root directory context to apply patches
+          # Return to the root directory mapping layer to execute patches
           cd ..
           
-          # 2. Inject and apply custom board configurations for the machine controller
+          # 2. Inject your custom configurations for the machine controller profile
           mkdir -p gaggimate-src/config gaggimate-src/scripts
           cp config-repo/config/board_override.json gaggimate-src/config/
           cp config-repo/scripts/* gaggimate-src/scripts/
@@ -85,15 +85,15 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
           
-          # 3. Compile the patched controller firmware
+          # 3. Compile the customized controller firmware
           pio run -e controller
           
-          # Extract the micro-controller binary pieces directly into the web assets map
+          # Absolute path extraction for the controller binary maps
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
           cp .pio/build/controller/bootloader.bin ../final-pages-site/controller/bootloader.bin
-          cp gaggimate-src/.pio/build/controller/partitions.bin ../final-pages-site/controller/partitions.bin || cp .pio/build/controller/partitions.bin ../final-pages-site/controller/partitions.bin
+          cp .pio/build/controller/partitions.bin ../final-pages-site/controller/partitions.bin
           
-          # Move parent layout web assets to complete the build sequence
+          # 4. Finalize static user panel dashboard assets
           cd ..
           cp config-repo/index.html final-pages-site/
           cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
