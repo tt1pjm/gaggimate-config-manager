@@ -58,8 +58,8 @@ jobs:
           pip install platformio
           cd gaggimate-src
           
-          # Build display natively while the shared GaggiMateController library is completely clean
-          pio run -e display
+          # Force build and print errors explicitly if it crashes
+          pio run -e display || (echo "=== DISPLAY COMPILATION FAILED CRITICAL LOGS ===" && cat .pio/build/display/program.log || true; exit 1)
 
       # MOVED STEP: Board overrides are now injected only after the display finishes compiling
       - name: Inject and Apply Board Overrides for Controller
