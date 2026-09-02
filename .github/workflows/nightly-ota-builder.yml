@@ -31,7 +31,6 @@ jobs:
         with:
           node-version: '18'
 
-      # CORRECTED SEQUENCE: Generates full web directories first so both environments have dependencies ready
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
@@ -61,45 +60,40 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # CORRECTED ORDER: Builds display filesystems first, then runs firmware targets sequentially
+      # TARGET CORRECTION: Compiles your exact hardware definitions
       - name: Install PlatformIO and Build
         run: |
           pip install platformio
           cd gaggimate-src
           
-          # 1. Compile display filesystem first to link file indices
-          pio run -e display -t buildfs
-          
-          # 2. Run target micro-controller compilations sequentially
-          pio run -e display
+          # Compiles partition profiles for the Waveshare 1.75 inch AMOLED screen target
+          pio run -e display-waveshare-1.75-amoled -t buildfs
+          pio run -e display-waveshare-1.75-amoled
           pio run -e controller
 
       - name: Prepare WebUSB and OTA Assets
         run: |
           mkdir -p final-pages-site/controller final-pages-site/display
           
-          # Deploy your parent landing interface page
           cp config-repo/index.html final-pages-site/
-          
-          # Position target configuration layouts
           cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
-          cp config-repo/config/manifest-display.json final-pages-site/display/manifest.json || cp config-repo/display/manifest.json final-pages-site/display/manifest.json
+          cp config-repo/display/manifest.json final-pages-site/display/manifest.json
           
-          # 1. EXTRACT BUNDLED COMPILER OUTPUTS FOR CONTROLLER
+          # Extract and position your custom controller binary parts
           cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/firmware.bin
           cp gaggimate-src/.pio/build/controller/bootloader.bin final-pages-site/controller/bootloader.bin
           cp gaggimate-src/.pio/build/controller/partitions.bin final-pages-site/controller/partitions.bin
           
-          # 2. EXTRACT BUNDLED COMPILER OUTPUTS FOR DISPLAY
-          cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/firmware.bin
-          cp gaggimate-src/.pio/build/display/bootloader.bin final-pages-site/display/bootloader.bin
-          cp gaggimate-src/.pio/build/display/partitions.bin final-pages-site/display/partitions.bin
+          # Extract and position your exact Waveshare display binary parts
+          cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/firmware.bin final-pages-site/display/firmware.bin
+          cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/bootloader.bin final-pages-site/display/bootloader.bin
+          cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/partitions.bin final-pages-site/display/partitions.bin
           
-          # Extract and rename the compiled filesystem image safely
-          if [ -f "gaggimate-src/.pio/build/display/littlefs.bin" ]; then
-            cp gaggimate-src/.pio/build/display/littlefs.bin final-pages-site/display/filesystem.bin
-          elif [ -f "gaggimate-src/.pio/build/display/spiffs.bin" ]; then
-            cp gaggimate-src/.pio/build/display/spiffs.bin final-pages-site/display/filesystem.bin
+          # Extract the compiled Waveshare LittleFS filesystem block
+          if [ -f "gaggimate-src/.pio/build/display-waveshare-1.75-amoled/littlefs.bin" ]; then
+            cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/littlefs.bin final-pages-site/display/filesystem.bin
+          elif [ -f "gaggimate-src/.pio/build/display-waveshare-1.75-amoled/spiffs.bin" ]; then
+            cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/spiffs.bin final-pages-site/display/filesystem.bin
           fi
 
       - name: Upload Pages Artifact
