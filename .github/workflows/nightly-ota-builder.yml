@@ -53,6 +53,7 @@ jobs:
           cd gaggimate-src
           pio run -e controller -e display
 
+      # 6. PACKAGE FIRMWARE AND FS IMAGES FOR WEBUSB AND OTA
       - name: Prepare WebUSB and OTA Assets
         run: |
           mkdir -p final-pages-site/controller final-pages-site/display
@@ -69,10 +70,17 @@ jobs:
           cp gaggimate-src/.pio/build/controller/bootloader.bin final-pages-site/controller/bootloader.bin
           cp gaggimate-src/.pio/build/controller/partitions.bin final-pages-site/controller/partitions.bin
           
-          # 2. EXTRACT BUNDLED COMPILER OUTPUTS FOR DISPLAY
+          # 2. EXTRACT BUNDLED COMPILER OUTPUTS FOR DISPLAY (Including Filesystem Image)
           cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/firmware.bin
           cp gaggimate-src/.pio/build/display/bootloader.bin final-pages-site/display/bootloader.bin
           cp gaggimate-src/.pio/build/display/partitions.bin final-pages-site/display/partitions.bin
+          
+          # Safely check for and copy the generated filesystem binary (handles spiffs or littlefs)
+          if [ -f "gaggimate-src/.pio/build/display/spiffs.bin" ]; then
+            cp gaggimate-src/.pio/build/display/spiffs.bin final-pages-site/display/filesystem.bin
+          elif [ -f "gaggimate-src/.pio/build/display/littlefs.bin" ]; then
+            cp gaggimate-src/.pio/build/display/littlefs.bin final-pages-site/display/filesystem.bin
+          fi
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
