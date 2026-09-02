@@ -6,7 +6,7 @@ on:
     - cron: '0 2 * * *'
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -60,15 +60,13 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # TARGET CORRECTION: Compiles your exact hardware definitions
+      # CORRECTED ENV NAME: Reverted back to the official core environment names
       - name: Install PlatformIO and Build
         run: |
           pip install platformio
           cd gaggimate-src
-          
-          # Compiles partition profiles for the Waveshare 1.75 inch AMOLED screen target
-          pio run -e display-waveshare-1.75-amoled -t buildfs
-          pio run -e display-waveshare-1.75-amoled
+          pio run -e display -t buildfs
+          pio run -e display
           pio run -e controller
 
       - name: Prepare WebUSB and OTA Assets
@@ -84,16 +82,16 @@ jobs:
           cp gaggimate-src/.pio/build/controller/bootloader.bin final-pages-site/controller/bootloader.bin
           cp gaggimate-src/.pio/build/controller/partitions.bin final-pages-site/controller/partitions.bin
           
-          # Extract and position your exact Waveshare display binary parts
-          cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/firmware.bin final-pages-site/display/firmware.bin
-          cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/bootloader.bin final-pages-site/display/bootloader.bin
-          cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/partitions.bin final-pages-site/display/partitions.bin
+          # Extract and position your display binary parts from the 'display' build folder
+          cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/firmware.bin
+          cp gaggimate-src/.pio/build/display/bootloader.bin final-pages-site/display/bootloader.bin
+          cp gaggimate-src/.pio/build/display/partitions.bin final-pages-site/display/partitions.bin
           
-          # Extract the compiled Waveshare LittleFS filesystem block
-          if [ -f "gaggimate-src/.pio/build/display-waveshare-1.75-amoled/littlefs.bin" ]; then
-            cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/littlefs.bin final-pages-site/display/filesystem.bin
-          elif [ -f "gaggimate-src/.pio/build/display-waveshare-1.75-amoled/spiffs.bin" ]; then
-            cp gaggimate-src/.pio/build/display-waveshare-1.75-amoled/spiffs.bin final-pages-site/display/filesystem.bin
+          # Extract the compiled LittleFS filesystem block
+          if [ -f "gaggimate-src/.pio/build/display/littlefs.bin" ]; then
+            cp gaggimate-src/.pio/build/display/littlefs.bin final-pages-site/display/filesystem.bin
+          elif [ -f "gaggimate-src/.pio/build/display/spiffs.bin" ]; then
+            cp gaggimate-src/.pio/build/display/spiffs.bin final-pages-site/display/filesystem.bin
           fi
 
       - name: Upload Pages Artifact
