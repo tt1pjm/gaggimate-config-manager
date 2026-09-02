@@ -26,14 +26,25 @@ jobs:
           ref: master
           path: gaggimate-src
 
-      - name: Setup Node.js (Required for Web Portal Build)
+      - name: Setup Node.js (Required for Web UI)
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
+      # ROBUST FIX: Installs and compiles WebUI explicitly to bypass silent bash failures
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
+          
+          # Force execute frontend dependency compilation manually
+          if [ -d "web" ]; then
+            cd web
+            npm ci
+            npm run build
+            cd ..
+          fi
+          
+          # Execute original bundling utility script to ensure compression and asset mapping
           if [ -f "scripts/build_webui.sh" ]; then
             chmod +x scripts/build_webui.sh
             ./scripts/build_webui.sh
@@ -60,11 +71,12 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # CORRECTED ACTIONS: Executes clean sequential builds without invalid target hooks
       - name: Install PlatformIO and Build
         run: |
           pip install platformio
           cd gaggimate-src
+          
+          # Compiles targets now that webassets folders are securely populated
           pio run -e display
           pio run -e controller
 
@@ -76,12 +88,12 @@ jobs:
           cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
           cp config-repo/display/manifest.json final-pages-site/display/manifest.json
           
-          # 1. EXTRACT BUNDLED COMPILER OUTPUTS FOR CONTROLLER
+          # Extract and position your custom controller binary parts
           cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/firmware.bin
           cp gaggimate-src/.pio/build/controller/bootloader.bin final-pages-site/controller/bootloader.bin
           cp gaggimate-src/.pio/build/controller/partitions.bin final-pages-site/controller/partitions.bin
           
-          # 2. EXTRACT BUNDLED COMPILER OUTPUTS FOR DISPLAY
+          # Extract and position your display binary parts
           cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/firmware.bin
           cp gaggimate-src/.pio/build/display/bootloader.bin final-pages-site/display/bootloader.bin
           cp gaggimate-src/.pio/build/display/partitions.bin final-pages-site/display/partitions.bin
