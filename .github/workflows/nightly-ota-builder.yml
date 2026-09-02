@@ -55,24 +55,26 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # UNIFIED RUN BLOCK: Builds and packages both targets out of their precise native output directories
+      # UNIFIED RUN BLOCK: Sets folder context explicitly to preserve workspace assets in memory
       - name: Compile and Package All Firmware Targets
         run: |
           pip install platformio
           
-          # Initialize target deployment directories
+          # Initialize flat destination directories in the root runner context
           mkdir -p final-pages-site/controller final-pages-site/display
           
-          # 1. Compile display natively from the core upstream framework branch
+          # Move inside the project directory containing platformio.ini for all builds
           cd gaggimate-src
+          
+          # 1. Compile the display natively while the shared libraries are clean
           pio run -e display
           
-          # Absolute path extraction using the real LilyGo-T-RGB directory mapping
-          cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
-          cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
-          cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
+          # Extract the display binary pieces instantly while in the correct directory context
+          cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
+          cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
+          cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # Return to the root directory mapping layer to execute patches
+          # Return to the root runner directory to apply patches
           cd ..
           
           # 2. Inject your custom configurations for the machine controller profile
@@ -80,6 +82,7 @@ jobs:
           cp config-repo/config/board_override.json gaggimate-src/config/
           cp config-repo/scripts/* gaggimate-src/scripts/
           
+          # Apply your script patches to the controller code
           cd gaggimate-src
           chmod +x scripts/apply_board_override_patch.sh
           python3 scripts/generate_board_override.py
@@ -88,7 +91,7 @@ jobs:
           # 3. Compile the customized controller firmware
           pio run -e controller
           
-          # Absolute path extraction for the controller binary maps
+          # Extract the controller binary pieces directly into the web assets map
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
           cp .pio/build/controller/bootloader.bin ../final-pages-site/controller/bootloader.bin
           cp .pio/build/controller/partitions.bin ../final-pages-site/controller/partitions.bin
