@@ -55,10 +55,13 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      - name: Install PlatformIO and Build Display Unpatched
+      # RE-STRUCTURED BUILD: Compiles display and controller together inside a single operational block
+      - name: Install PlatformIO and Build Hardware Targets
         run: |
           pip install platformio
           cd gaggimate-src
+          
+          # Compiling display natively first
           pio run -e display
 
       - name: Inject and Apply Board Overrides for Controller
@@ -79,27 +82,32 @@ jobs:
           cd gaggimate-src
           pio run -e controller
 
+      # AUTO-DISCOVERY BACKUP: Finds whatever the folder is named in the workspace live
       - name: Prepare WebUSB and OTA Assets
         run: |
           mkdir -p final-pages-site/controller final-pages-site/display
           
-          # Deploy your parent landing interface page
           cp config-repo/index.html final-pages-site/
-          
-          # Position target configuration layouts
           cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
           cp config-repo/display/manifest.json final-pages-site/display/manifest.json
           
-          # 1. POSITION CUSTOM CONTROLLER BINARIES
+          # 1. Copy custom controller binaries
           cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/firmware.bin
           cp gaggimate-src/.pio/build/controller/bootloader.bin final-pages-site/controller/bootloader.bin
           cp gaggimate-src/.pio/build/controller/partitions.bin final-pages-site/controller/partitions.bin
           
-          # 2. POSITION OFFICIAL LILYGO-T-RGB DISPLAY BINARIES
-          # (PlatformIO saves your Waveshare configs directly inside this environment folder)
-          cp gaggimate-src/.pio/build/LilyGo-T-RGB/firmware.bin final-pages-site/display/firmware.bin
-          cp gaggimate-src/.pio/build/LilyGo-T-RGB/bootloader.bin final-pages-site/display/bootloader.bin
-          cp gaggimate-src/.pio/build/LilyGo-T-RGB/partitions.bin final-pages-site/display/partitions.bin
+          # 2. Locate the real display build folder dynamically
+          DISPLAY_DIR=$(find gaggimate-src/.pio/build/ -maxdepth 1 -type d ! -name "build" ! -name "controller" | grep -v "^gaggimate-src/.pio/build/$" | head -n 1)
+          
+          if [ -n "$DISPLAY_DIR" ] && [ -f "$DISPLAY_DIR/firmware.bin" ]; then
+            echo "Successfully found display binaries inside: $DISPLAY_DIR"
+            cp "$DISPLAY_DIR/firmware.bin" final-pages-site/display/firmware.bin
+            cp "$DISPLAY_DIR/bootloader.bin" final-pages-site/display/bootloader.bin
+            cp "$DISPLAY_DIR/partitions.bin" final-pages-site/display/partitions.bin
+          else
+            echo "CRITICAL SEARCH ERROR: No structural display data found in the workspace tree."
+            exit 1
+          fi
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
