@@ -60,7 +60,6 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # CORRECTED ENV NAME: Reverted back to the official core environment names
       - name: Install PlatformIO and Build
         run: |
           pip install platformio
@@ -77,21 +76,24 @@ jobs:
           cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
           cp config-repo/display/manifest.json final-pages-site/display/manifest.json
           
-          # Extract and position your custom controller binary parts
+          # 1. EXTRACT BUNDLED COMPILER OUTPUTS FOR CONTROLLER
           cp gaggimate-src/.pio/build/controller/firmware.bin final-pages-site/controller/firmware.bin
           cp gaggimate-src/.pio/build/controller/bootloader.bin final-pages-site/controller/bootloader.bin
           cp gaggimate-src/.pio/build/controller/partitions.bin final-pages-site/controller/partitions.bin
           
-          # Extract and position your display binary parts from the 'display' build folder
+          # 2. EXTRACT BUNDLED COMPILER OUTPUTS FOR DISPLAY
           cp gaggimate-src/.pio/build/display/firmware.bin final-pages-site/display/firmware.bin
           cp gaggimate-src/.pio/build/display/bootloader.bin final-pages-site/display/bootloader.bin
           cp gaggimate-src/.pio/build/display/partitions.bin final-pages-site/display/partitions.bin
           
-          # Extract the compiled LittleFS filesystem block
+          # CORRECTED COPIER: Forces explicit mapping of littlefs binary down to flat target asset folder name
           if [ -f "gaggimate-src/.pio/build/display/littlefs.bin" ]; then
             cp gaggimate-src/.pio/build/display/littlefs.bin final-pages-site/display/filesystem.bin
           elif [ -f "gaggimate-src/.pio/build/display/spiffs.bin" ]; then
             cp gaggimate-src/.pio/build/display/spiffs.bin final-pages-site/display/filesystem.bin
+          else
+            echo "ERROR: No compiled filesystem binary asset found inside workspace!"
+            exit 1
           fi
 
       - name: Upload Pages Artifact
