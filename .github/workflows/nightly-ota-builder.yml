@@ -31,15 +31,22 @@ jobs:
         with:
           node-version: '18'
 
+      # RE-ROUTING STEP: Injects your repository paths into both React web code and C++ macros
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
+          
+          # 1. Force the embedded React interface to query YOUR repository instead of upstream
           if [ -d "web" ]; then
             cd web
+            find . -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
             npm ci
             npm run build
             cd ..
           fi
+          
+          # 2. Rewrite internal firmware updates and tracking files to match your layout name
+          find . -type f \( -name "*.h" -o -name "*.cpp" -o -name "*.ini" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
           
           mkdir -p src/display/webassets
           if [ -f "scripts/build_webui.sh" ]; then
