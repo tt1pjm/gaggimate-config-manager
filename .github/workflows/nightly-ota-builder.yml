@@ -50,13 +50,25 @@ jobs:
             ./scripts/build_webui.sh
           fi
 
+      # HARDCODED SOURCE INJECTION: Hardwires versions straight into codebase source headers to override broken scripts
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
           VERSION_STRING="v1.8.1-custom-nightly-$(date +'%Y%m%d%H%M%S')-${{ github.run_number }}"
           echo "$VERSION_STRING" > gaggimate-src/version.txt
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
+          
+          # 1. Look for internal global header files where constants are set and force-inject the version
+          find gaggimate-src/ -type f \( -name "version.h" -o -name "Constants.h" -o -name "Config.h" \) -exec sed -i "s|#define\s\+GAGGIMATE_VERSION\s\+.*|#define GAGGIMATE_VERSION \"$VERSION_STRING\"|g" {} + || true
+          find gaggimate-src/ -type f \( -name "version.h" -o -name "Constants.h" -o -name "Config.h" \) -exec sed -i "s|#define\s\+FIRMWARE_VERSION\s\+.*|#define FIRMWARE_VERSION \"$VERSION_STRING\"|g" {} + || true
+          
+          # 2. Hardcode the version directly inside any configuration variables inside main app source files
+          find gaggimate-src/src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i "s|GAGGIMATE_VERSION\s*=\s*\".*\"|GAGGIMATE_VERSION = \"$VERSION_STRING\"|g" {} + || true
+          find gaggimate-src/src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i "s|FIRMWARE_VERSION\s*=\s*\".*\"|FIRMWARE_VERSION = \"$VERSION_STRING\"|g" {} + || true
+          
+          # 3. Intercept and completely bypass the codebase's automated python version generation hooks
           find gaggimate-src/ -name "version*.py" -exec sed -i "s|git describe.*|'$VERSION_STRING'|g" {} + || true
+          find gaggimate-src/ -name "version*.py" -exec sed -i "s|return\s\+.*|return '$VERSION_STRING'|g" {} + || true
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
