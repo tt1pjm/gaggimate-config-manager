@@ -6,7 +6,7 @@ on:
     - cron: '0 2 * * *'
 
 permissions:
-  contents: write    # Required to overwrite and update the 'nightly' release tag
+  contents: write
   pages: write
   id-token: write
 
@@ -50,44 +50,40 @@ jobs:
             ./scripts/build_webui.sh
           fi
 
-      - name: Cache PlatformIO
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.platformio
-            gaggimate-src/.pio
-          key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
-
-      # FIXED VERSION INJECTION: Targets only specific firmware tags to protect UI library macros
+      # FIXED VERSION INJECTION: Dynamically appends concrete text variables right to the main build config block
       - name: Inject Custom Version Metadata
         run: |
           VERSION_STRING="v1.8.1-custom-nightly-$(date +'%Y%m%d%H%M%S')-${{ github.run_number }}"
           echo "$VERSION_STRING" > gaggimate-src/version.txt
           
-          # Force set the firmware version string inside any python build utility hooks
-          find gaggimate-src/ -name "version*.py" -exec sed -i "s|git describe.*|$VERSION_STRING|g" {} + || true
+          # Force set version inside python build hooks
+          find gaggimate-src/ -name "version*.py" -exec sed -i "s|git describe.*|'$VERSION_STRING'|g" {} + || true
           
-          # Force append the required version build macro right onto PlatformIO's global compiler flags
+          # Appends explicit macro variables directly to the global configuration layout mapping
           if [ -f "gaggimate-src/platformio.ini" ]; then
-            sed -i "s|build_flags =|build_flags = -D FIRMWARE_VERSION=\\\"$VERSION_STRING\\\"|g" gaggimate-src/platformio.ini
+            echo "build_flags =" >> gaggimate-src/platformio.ini
+            echo "    -D GAGGIMATE_VERSION=\\\"$VERSION_STRING\\\"" >> gaggimate-src/platformio.ini
+            echo "    -D FIRMWARE_VERSION=\\\"$VERSION_STRING\\\"" >> gaggimate-src/platformio.ini
           fi
-          
-          # SAFELY OVERWRITE ONLY DEFINED LITERAL STRINGS:
-          # This limits the text swap strictly to variables starting with GAGGIMATE_VERSION or FIRMWARE_VERSION
-          find gaggimate-src/ -name "version.h" -exec sed -i "s|#define\s\+GAGGIMATE_VERSION\s\+.*|#define GAGGIMATE_VERSION \"$VERSION_STRING\"|g" {} + || true
-          find gaggimate-src/ -name "version.h" -exec sed -i "s|#define\s\+FIRMWARE_VERSION\s\+.*|#define FIRMWARE_VERSION \"$VERSION_STRING\"|g" {} + || true
 
+      # UNIFIED RUN BLOCK: Restored compile flags to build the missing filesystem binary safely
       - name: Compile and Package All Firmware Targets
         run: |
           pip install platformio
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cd gaggimate-src
+          
+          # 1. Compile the display firmware AND its missing data filesystem image
+          pio run -e display -t buildfs
           pio run -e display
           
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
+          
+          # Extract the generated LittleFS/SPIFFS binary asset image directly
+          cp .pio/build/display/littlefs.bin ../final-pages-site/display/filesystem.bin || cp .pio/build/display/spiffs.bin ../final-pages-site/display/filesystem.bin || cp .pio/build/LilyGo-T-RGB/littlefs.bin ../final-pages-site/display/filesystem.bin || cp .pio/build/LilyGo-T-RGB/spiffs.bin ../final-pages-site/display/filesystem.bin
           
           cd ..
           mkdir -p gaggimate-src/config gaggimate-src/scripts
@@ -99,6 +95,7 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
           
+          # 2. Compile controller firmware
           pio run -e controller
           
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
@@ -119,26 +116,24 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      # STRUCTURE RE-ALIGNMENT: Bundles all distinct companion binaries matching upstream schemas exactly
+      # REALIGNMENT STEP: Maps all distinct companion binary profiles matching upstream schemas
       - name: Prepare Official Release Structural Artifacts
         id: release_prep
         run: |
           mkdir -p release-artifacts
-          
-          # Generate the identical tracking version text file required by the update checker script
           cp gaggimate-src/version.txt release-artifacts/version.txt
           
-          # Package Controller binaries using Gaggimate naming conventions
+          # Controller
           cp final-pages-site/controller/firmware.bin release-artifacts/board-firmware.bin
           cp final-pages-site/controller/bootloader.bin release-artifacts/board-bootloader.bin
           cp final-pages-site/controller/partitions.bin release-artifacts/board-partitions.bin
           
-          # Package Display binaries using Gaggimate naming conventions
+          # Display (Includes the missing filesystem element asset required by OTA)
           cp final-pages-site/display/firmware.bin release-artifacts/display-firmware.bin
           cp final-pages-site/display/bootloader.bin release-artifacts/display-bootloader.bin
           cp final-pages-site/display/partitions.bin release-artifacts/display-partitions.bin
+          cp final-pages-site/display/filesystem.bin release-artifacts/display-filesystem.bin
 
-      # PERMANENT OVERWRITE ROUTINE: Keeps the single static tag name "nightly" exactly like upstream
       - name: Publish Custom OTA Release
         uses: softprops/action-gh-release@v2
         with:
@@ -156,3 +151,4 @@ jobs:
             release-artifacts/display-firmware.bin
             release-artifacts/display-bootloader.bin
             release-artifacts/display-partitions.bin
+            release-artifacts/display-filesystem.bin
