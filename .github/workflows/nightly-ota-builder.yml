@@ -51,28 +51,34 @@ jobs:
             ./scripts/build_webui.sh
           fi
 
-      # FUTURE-PROOF PHASE: Automatically senses and tracks upstream version upgrades dynamically
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
-          # 1. Parse the exact baseline version string tracked by the core maintainers inside platformio.ini
-          UPSTREAM_VERSION=$(grep -m 1 "version =" gaggimate-src/platformio.ini | awk -F'"' '{print $2}' || echo "v1.8.1")
-          if [ -z "$UPSTREAM_VERSION" ]; then
-            UPSTREAM_VERSION=$(grep -m 1 "version" gaggimate-src/platformio.ini | awk '{print $3}' | tr -d '"' || echo "v1.8.1")
+          # 1. Pull the absolute latest real milestone release tag straight from the upstream repo logs
+          cd gaggimate-src
+          UPSTREAM_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.8.1")
+          cd ..
+          
+          # Clean the string to ensure it contains only numbers, letters, hyphens, and dots (removing broken chars like < > *)
+          UPSTREAM_VERSION=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9.-]//g')
+          
+          # Force ensure a clean fallback layout if the variable returned empty
+          if [ -z "$UPSTREAM_VERSION" ] || [ "$UPSTREAM_VERSION" = "-" ]; then
+            UPSTREAM_VERSION="v1.8.1"
           fi
           
-          # Ensure a fallback prefix exists if the string format lacks a leading 'v'
+          # Ensure a leading 'v' is attached for standardized semantic formatting
           [[ "$UPSTREAM_VERSION" != v* ]] && UPSTREAM_VERSION="v$UPSTREAM_VERSION"
           
-          # 2. Append high-precision runtime variables to allow instant multi-run test upgrades
+          # 2. Append high-precision runtime variables to support instant multi-run updates
           VERSION_STRING="${UPSTREAM_VERSION}-custom-nightly-$(date +'%Y%m%d%H%M%S')-${{ github.run_number }}"
-          echo "Discovered Upstream Version Baseline: $UPSTREAM_VERSION"
+          echo "Validated Upstream Version Target: $UPSTREAM_VERSION"
           echo "Generated Tracking Firmware Signature: $VERSION_STRING"
           
           echo "$VERSION_STRING" > gaggimate-src/version.txt
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
           
-          # 3. Initialize dynamic local git tags inside the runner to satisfy PlatformIO script loops
+          # 3. Initialize clean local git tags inside the runner to satisfy PlatformIO script hooks
           cd gaggimate-src
           git config --global user.email "automation@github.com"
           git config --global user.name "Actions Builder"
