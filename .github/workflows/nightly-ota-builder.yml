@@ -37,7 +37,6 @@ jobs:
           cd gaggimate-src
           if [ -d "web" ]; then
             cd web
-            find . -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
             npm ci
             npm run build
             cd ..
@@ -54,31 +53,21 @@ jobs:
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
-          # 1. Pull the absolute latest real milestone release tag straight from the upstream repo logs
           cd gaggimate-src
           UPSTREAM_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.8.1")
           cd ..
           
-          # Clean the string to ensure it contains only numbers, letters, hyphens, and dots (removing broken chars like < > *)
           UPSTREAM_VERSION=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9.-]//g')
-          
-          # Force ensure a clean fallback layout if the variable returned empty
           if [ -z "$UPSTREAM_VERSION" ] || [ "$UPSTREAM_VERSION" = "-" ]; then
             UPSTREAM_VERSION="v1.8.1"
           fi
-          
-          # Ensure a leading 'v' is attached for standardized semantic formatting
           [[ "$UPSTREAM_VERSION" != v* ]] && UPSTREAM_VERSION="v$UPSTREAM_VERSION"
           
-          # 2. Append high-precision runtime variables to support instant multi-run updates
           VERSION_STRING="${UPSTREAM_VERSION}-custom-nightly-$(date +'%Y%m%d%H%M%S')-${{ github.run_number }}"
-          echo "Validated Upstream Version Target: $UPSTREAM_VERSION"
-          echo "Generated Tracking Firmware Signature: $VERSION_STRING"
-          
-          echo "$VERSION_STRING" > gaggimate-src/version.txt
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
           
-          # 3. Initialize clean local git tags inside the runner to satisfy PlatformIO script hooks
+          echo "$VERSION_STRING" > gaggimate-src/version.txt
+          
           cd gaggimate-src
           git config --global user.email "automation@github.com"
           git config --global user.name "Actions Builder"
@@ -100,11 +89,20 @@ jobs:
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cd gaggimate-src
+          
+          # 1. Compile display firmware AND generate the local data storage image binary
+          pio run -e display -t buildfs
           pio run -e display
           
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
+          
+          # Map whatever name variant the compiled filesystem image uses in the workspace folder
+          FS_BIN=$(find .pio/build/ -type f \( -name "littlefs.bin" -o -name "spiffs.bin" \) | head -n 1)
+          if [ -n "$FS_BIN" ]; then
+            cp "$FS_BIN" ../final-pages-site/display/filesystem.bin
+          fi
           
           cd ..
           mkdir -p gaggimate-src/config gaggimate-src/scripts
@@ -116,6 +114,7 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
           
+          # 2. Compile controller firmware
           pio run -e controller
           
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
@@ -151,6 +150,9 @@ jobs:
           cp final-pages-site/display/firmware.bin release-artifacts/display-firmware.bin
           cp final-pages-site/display/bootloader.bin release-artifacts/display-bootloader.bin
           cp final-pages-site/display/partitions.bin release-artifacts/display-partitions.bin
+          if [ -f "final-pages-site/display/filesystem.bin" ]; then
+            cp final-pages-site/display/filesystem.bin release-artifacts/display-filesystem.bin
+          fi
 
       - name: Publish Custom OTA Release
         uses: softprops/action-gh-release@v2
@@ -169,3 +171,4 @@ jobs:
             release-artifacts/display-firmware.bin
             release-artifacts/display-bootloader.bin
             release-artifacts/display-partitions.bin
+            release-artifacts/display-filesystem.bin
