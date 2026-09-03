@@ -101,13 +101,16 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      # AUTOMATED RELEASE GENERATION: Generates a unique, incrementing release version tag
       - name: Create Unique Release Tag Version
         id: release_vars
         run: |
-          # Generates a version string using the date and unique build run number (e.g., v2026.09.03-45)
           TAG_NAME="v$(date +'%Y.%m.%d')-${{ github.run_number }}"
           echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          
+          # Create an isolated staging area to uniquely rename binary outputs
+          mkdir -p release-artifacts
+          cp final-pages-site/controller/firmware.bin release-artifacts/controller.bin
+          cp final-pages-site/display/firmware.bin release-artifacts/display.bin
 
       - name: Publish Custom OTA Release
         uses: softprops/action-gh-release@v2
@@ -116,7 +119,7 @@ jobs:
           name: "Gaggimate Custom Build ${{ steps.release_vars.outputs.tag }}"
           body: "Automated ad-hoc firmware build tracking custom pin configurations."
           draft: false
-          prerelease: true # Marks it as a 'Nightly' pre-release channel asset
+          prerelease: true
           files: |
-            final-pages-site/controller/firmware.bin
-            final-pages-site/display/firmware.bin
+            release-artifacts/controller.bin
+            release-artifacts/display.bin
