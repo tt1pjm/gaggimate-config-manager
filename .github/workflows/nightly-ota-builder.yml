@@ -29,34 +29,31 @@ jobs:
           fetch-depth: 0    # Pulls all historical data layers
           tags: true        # Includes original project version markers
 
-      # SAFE VERSIONING SUITE: Lets the native Python generation scripts execute naturally 
+      # ALIGNMENT PHASE: Captures the exact string identifiers generated inside the C++ headers
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
           cd gaggimate-src
           
-          # Run the project's native version script to determine what commit hash this code relates to
+          # Run the official upstream script loop to ensure files are fully updated
           if [ -f "scripts/generate_version_header.py" ]; then
             python3 scripts/generate_version_header.py || true
           fi
           
-          # Extract whatever identifier the official script just native-generated
+          # 1. Read the exact dynamic string compiled into your display module
           if [ -f "src/generated/version.h" ]; then
-            UPSTREAM_VERSION=$(grep "FIRMWARE_VERSION" src/generated/version.h | awk -F'"' '{print $2}' || echo "")
+            VERSION_STRING=$(grep "FIRMWARE_VERSION" src/generated/version.h | awk -F'"' '{print $2}' || echo "")
           fi
           
-          # Fallback check if the file path sits inside a different directory layer
-          if [ -z "$UPSTREAM_VERSION" ] && [ -f "version.txt" ]; then
-            UPSTREAM_VERSION=$(cat version.txt)
+          # 2. Fallback check if the string format requires direct local Git evaluation
+          if [ -z "$VERSION_STRING" ]; then
+            VERSION_STRING=$(git describe --tags --always --dirty 2>/dev/null || echo "v1.8.1")
           fi
           
-          # If it still resolves empty, fetch the closest code marker via local Git calls
-          if [ -z "$UPSTREAM_VERSION" ]; then
-            UPSTREAM_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v1.8.1")
-          fi
+          # Clean leading 'v' characters if present to align perfectly with the update tracking formats
+          VERSION_STRING=$(echo "$VERSION_STRING" | sed 's/^v//g')
           
-          # Append a clean, short identifier tag to explicitly signal this is your custom layout profile
-          VERSION_STRING="${UPSTREAM_VERSION}-custom"
+          echo "Syncing GitHub Deployment Tracking Version To: $VERSION_STRING"
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
           echo "$VERSION_STRING" > version.txt
 
