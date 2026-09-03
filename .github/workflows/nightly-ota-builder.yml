@@ -25,7 +25,7 @@ jobs:
           repository: jniebuhr/gaggimate
           ref: master
           path: gaggimate-src
-          fetch-depth: 0 # Fetches full history so tag references are visible to git commands
+          fetch-depth: 0 # MANDATORY: Fetches full code framework histories so git tag lineages exist natively
 
       - name: Setup Node.js (Required for Web UI)
         uses: actions/setup-node@v4
@@ -49,7 +49,7 @@ jobs:
             ./scripts/build_webui.sh
           fi
 
-      # SAFE TAG INJECTION: Feeds a clean semantic string to the official upstream version script
+      # AUTOMATED TAGGING: Feeds a clean, safe semantic tracking tag to the official upstream version script
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
@@ -60,12 +60,12 @@ jobs:
           UPSTREAM_VERSION=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9.-]//g')
           [[ "$UPSTREAM_VERSION" != v* ]] && UPSTREAM_VERSION="v$UPSTREAM_VERSION"
           
-          # Append a clean, safe semantic tag containing your high-precision test timestamps
+          # Append a clean, safe semantic tag tracking your high-precision timestamps and build runs
           VERSION_STRING="${UPSTREAM_VERSION}-custom-nightly-$(date +'%Y%m%d%H%M%S')-${{ github.run_number }}"
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
           echo "$VERSION_STRING" > version.txt
           
-          # Configure standard dummy git identities inside the directory container
+          # Configure standard dummy git identities inside the project container
           git config --global user.email "automation@github.com"
           git config --global user.name "Actions Builder"
           
@@ -88,23 +88,12 @@ jobs:
           
           cd gaggimate-src
           
-          # 1. Compile display firmware cleanly
-          pio run -e display -t buildfs || true
+          # 1. Compile display firmware targets sequentially
           pio run -e display
           
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
-          
-          # INTERCEPTOR: Scans the workspace dynamically to catch any generated file asset partition images
-          FS_BIN=$(find .pio/build/ -type f \( -name "littlefs.bin" -o -name "spiffs.bin" -o -name "*fs.bin" \) | head -n 1)
-          if [ -n "$FS_BIN" ]; then
-            echo "Successfully discovered compiled Web UI filesystem partition image at: $FS_BIN"
-            cp "$FS_BIN" ../final-pages-site/display/filesystem.bin
-          else
-            echo "No explicit filesystem file found. Bundling firmware mirror block to clear layout checks."
-            cp ../final-pages-site/display/firmware.bin ../final-pages-site/display/filesystem.bin
-          fi
           
           cd ..
           mkdir -p gaggimate-src/config gaggimate-src/scripts
@@ -152,9 +141,6 @@ jobs:
           cp final-pages-site/display/firmware.bin release-artifacts/display-firmware.bin
           cp final-pages-site/display/bootloader.bin release-artifacts/display-bootloader.bin
           cp final-pages-site/display/partitions.bin release-artifacts/display-partitions.bin
-          if [ -f "final-pages-site/display/filesystem.bin" ]; then
-            cp final-pages-site/display/filesystem.bin release-artifacts/display-filesystem.bin
-          fi
 
       - name: Publish Custom OTA Release
         uses: softprops/action-gh-release@v2
@@ -173,4 +159,3 @@ jobs:
             release-artifacts/display-firmware.bin
             release-artifacts/display-bootloader.bin
             release-artifacts/display-partitions.bin
-            release-artifacts/display-filesystem.bin
