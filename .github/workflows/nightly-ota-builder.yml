@@ -58,16 +58,22 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # VERSION INJECTION STEP: Prevents displayVersion/controllerVersion from compilation as empty strings
+      # INJECT VERSION FIX: Replaces fallback empty macros with hardwired version metrics globally
       - name: Inject Custom Version Metadata
         run: |
-          # Create a mock semantic tag matching upstream version strings
           VERSION_STRING="v1.8.1-custom-nightly-$(date +'%Y%m%d')"
           echo "$VERSION_STRING" > gaggimate-src/version.txt
           
-          # Force inject the version string into the codebase configurations to ensure the device reports it
-          # (Alters any fallback auto-version python script lookups inside the PlatformIO build files)
+          # Force set the firmware version string inside any python build utility hooks
           find gaggimate-src/ -name "version*.py" -exec sed -i "s|git describe.*|$VERSION_STRING|g" {} + || true
+          
+          # Force append the required version build macro right onto PlatformIO's global compiler flags
+          if [ -f "gaggimate-src/platformio.ini" ]; then
+            sed -i "s|build_flags =|build_flags = -D FIRMWARE_VERSION=\\\"$VERSION_STRING\\\"|g" gaggimate-src/platformio.ini
+          fi
+          
+          # Overwrite any hardcoded fallback version strings found inside C++ core headers
+          find gaggimate-src/ -name "version.h" -exec sed -i "s|#define.*VERSION.*|#define FIRMWARE_VERSION \"$VERSION_STRING\"|g" {} + || true
 
       - name: Compile and Package All Firmware Targets
         run: |
