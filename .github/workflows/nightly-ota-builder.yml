@@ -101,13 +101,14 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+      # CORRECTED: Includes 'nightly' in the tag name so the Gaggimate updater maps it to the Nightly channel
       - name: Create Unique Release Tag Version
         id: release_vars
         run: |
-          TAG_NAME="v$(date +'%Y.%m.%d')-${{ github.run_number }}"
+          # The literal word 'nightly' forces the Web UI to flag it as a valid update
+          TAG_NAME="nightly-$(date +'%Y.%m.%d')-${{ github.run_number }}"
           echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
           
-          # Create an isolated staging area to uniquely rename binary outputs
           mkdir -p release-artifacts
           cp final-pages-site/controller/firmware.bin release-artifacts/controller.bin
           cp final-pages-site/display/firmware.bin release-artifacts/display.bin
@@ -116,10 +117,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_vars.outputs.tag }}
-          name: "Gaggimate Custom Build ${{ steps.release_vars.outputs.tag }}"
-          body: "Automated ad-hoc firmware build tracking custom pin configurations."
+          name: "Gaggimate Custom Nightly Build ${{ steps.release_vars.outputs.tag }}"
+          body: "Automated custom pin map update tracking standard controller extension profiles."
           draft: false
-          prerelease: true
+          prerelease: true # Confirms it as a development release
           files: |
             release-artifacts/controller.bin
             release-artifacts/display.bin
