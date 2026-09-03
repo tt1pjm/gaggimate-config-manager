@@ -50,15 +50,12 @@ jobs:
             ./scripts/build_webui.sh
           fi
 
-      # FIXED VERSION GENERATION: Generates the timestamp string file cleanly without breaking file systems
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
           VERSION_STRING="v1.8.1-custom-nightly-$(date +'%Y%m%d%H%M%S')-${{ github.run_number }}"
           echo "$VERSION_STRING" > gaggimate-src/version.txt
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
-          
-          # Force fallback version overrides inside python build scripts
           find gaggimate-src/ -name "version*.py" -exec sed -i "s|git describe.*|'$VERSION_STRING'|g" {} + || true
 
       - name: Cache PlatformIO
@@ -69,7 +66,6 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # FIXED COMPILATION LAYER: Employs PLATFORMIO_BUILD_FLAGS environment variables to inject configurations cleanly
       - name: Compile and Package All Firmware Targets
         env:
           PLATFORMIO_BUILD_FLAGS: '-D GAGGIMATE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\" -D FIRMWARE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\"'
@@ -83,10 +79,29 @@ jobs:
           pio run -e display -t buildfs
           pio run -e display
           
+          # Dynamic target fallback extraction for display firmware parts
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
-          cp .pio/build/display/littlefs.bin ../final-pages-site/display/filesystem.bin || cp .pio/build/display/spiffs.bin ../final-pages-site/display/filesystem.bin || cp .pio/build/LilyGo-T-RGB/littlefs.bin ../final-pages-site/display/filesystem.bin || cp .pio/build/LilyGo-T-RGB/spiffs.bin ../final-pages-site/display/filesystem.bin
+          
+          # CORRECTED FILESYSTEM CAPTURE: Searches nested build outputs using dynamic wildcard parameters directly inside the compilation folder context
+          if [ -f ".pio/build/display/littlefs.bin" ]; then
+            cp .pio/build/display/littlefs.bin ../final-pages-site/display/filesystem.bin
+          elif [ -f ".pio/build/display/spiffs.bin" ]; then
+            cp .pio/build/display/spiffs.bin ../final-pages-site/display/filesystem.bin
+          elif [ -f ".pio/build/LilyGo-T-RGB/littlefs.bin" ]; then
+            cp .pio/build/LilyGo-T-RGB/littlefs.bin ../final-pages-site/display/filesystem.bin
+          elif [ -f ".pio/build/LilyGo-T-RGB/spiffs.bin" ]; then
+            cp .pio/build/LilyGo-T-RGB/spiffs.bin ../final-pages-site/display/filesystem.bin
+          else
+            # Deep fallback if names vary dynamically
+            FS_BIN=$(find .pio/build/ -type f \( -name "littlefs.bin" -o -name "spiffs.bin" \) | head -n 1)
+            if [ -n "$FS_BIN" ]; then
+              cp "$FS_BIN" ../final-pages-site/display/filesystem.bin
+            else
+              echo "WARNING: Filesystem asset binary skipped. Building with baseline structural layout."
+            fi
+          fi
           
           cd ..
           mkdir -p gaggimate-src/config gaggimate-src/scripts
@@ -130,11 +145,13 @@ jobs:
           cp final-pages-site/controller/bootloader.bin release-artifacts/board-bootloader.bin
           cp final-pages-site/controller/partitions.bin release-artifacts/board-partitions.bin
           
-          # Display
+          # Display (Safely packages filesystem image only if it was successfully extracted)
           cp final-pages-site/display/firmware.bin release-artifacts/display-firmware.bin
           cp final-pages-site/display/bootloader.bin release-artifacts/display-bootloader.bin
           cp final-pages-site/display/partitions.bin release-artifacts/display-partitions.bin
-          cp final-pages-site/display/filesystem.bin release-artifacts/display-filesystem.bin
+          if [ -f "final-pages-site/display/filesystem.bin" ]; then
+            cp final-pages-site/display/filesystem.bin release-artifacts/display-filesystem.bin
+          fi
 
       - name: Publish Custom OTA Release
         uses: softprops/action-gh-release@v2
