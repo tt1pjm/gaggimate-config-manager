@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0    # Pulls all historical data layers
           tags: true        # Includes original project version markers
 
-      # ALIGNMENT PHASE: Captures the exact string identifiers generated inside the C++ headers
+      # CORRECTED LOGIC: Forces the script to write the true semantic version code instead of the tag string
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
@@ -40,7 +40,7 @@ jobs:
             python3 scripts/generate_version_header.py || true
           fi
           
-          # 1. Read the exact dynamic string compiled into your display module
+          # 1. Read the exact dynamic string compiled into the source headers natively
           if [ -f "src/generated/version.h" ]; then
             VERSION_STRING=$(grep "FIRMWARE_VERSION" src/generated/version.h | awk -F'"' '{print $2}' || echo "")
           fi
@@ -50,11 +50,13 @@ jobs:
             VERSION_STRING=$(git describe --tags --always --dirty 2>/dev/null || echo "v1.8.1")
           fi
           
-          # Clean leading 'v' characters if present to align perfectly with the update tracking formats
+          # Strip out any leading 'v' characters to match the Gaggimate text parser expectations perfectly
           VERSION_STRING=$(echo "$VERSION_STRING" | sed 's/^v//g')
           
           echo "Syncing GitHub Deployment Tracking Version To: $VERSION_STRING"
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
+          
+          # FIX: Overwrites version.txt with the explicit hash identifier string (e.g. 1.8.1-173-gfb8fa48b)
           echo "$VERSION_STRING" > version.txt
           cd ..
 
