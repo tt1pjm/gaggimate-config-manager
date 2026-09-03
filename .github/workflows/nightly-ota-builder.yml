@@ -50,7 +50,7 @@ jobs:
             ./scripts/build_webui.sh
           fi
 
-      # HARDCODED SOURCE INJECTION: Hardwires versions straight into codebase source headers to override broken scripts
+      # FIXED VERSION INJECTION: Intercepts the generation target to block the empty git fallback check
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
@@ -58,17 +58,18 @@ jobs:
           echo "$VERSION_STRING" > gaggimate-src/version.txt
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
           
-          # 1. Look for internal global header files where constants are set and force-inject the version
-          find gaggimate-src/ -type f \( -name "version.h" -o -name "Constants.h" -o -name "Config.h" \) -exec sed -i "s|#define\s\+GAGGIMATE_VERSION\s\+.*|#define GAGGIMATE_VERSION \"$VERSION_STRING\"|g" {} + || true
-          find gaggimate-src/ -type f \( -name "version.h" -o -name "Constants.h" -o -name "Config.h" \) -exec sed -i "s|#define\s\+FIRMWARE_VERSION\s\+.*|#define FIRMWARE_VERSION \"$VERSION_STRING\"|g" {} + || true
+          # Force create the target directory layout where the core application pulls its versions
+          mkdir -p gaggimate-src/src/generated
           
-          # 2. Hardcode the version directly inside any configuration variables inside main app source files
-          find gaggimate-src/src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i "s|GAGGIMATE_VERSION\s*=\s*\".*\"|GAGGIMATE_VERSION = \"$VERSION_STRING\"|g" {} + || true
-          find gaggimate-src/src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i "s|FIRMWARE_VERSION\s*=\s*\".*\"|FIRMWARE_VERSION = \"$VERSION_STRING\"|g" {} + || true
+          # Manually map the exact version header parameters so the compiler reads it directly
+          echo "#ifndef GAGGIMATE_VERSION_H" > gaggimate-src/src/generated/version.h
+          echo "#define GAGGIMATE_VERSION_H" >> gaggimate-src/src/generated/version.h
+          echo "#define GAGGIMATE_VERSION \"$VERSION_STRING\"" >> gaggimate-src/src/generated/version.h
+          echo "#define FIRMWARE_VERSION \"$VERSION_STRING\"" >> gaggimate-src/src/generated/version.h
+          echo "#endif" >> gaggimate-src/src/generated/version.h
           
-          # 3. Intercept and completely bypass the codebase's automated python version generation hooks
-          find gaggimate-src/ -name "version*.py" -exec sed -i "s|git describe.*|'$VERSION_STRING'|g" {} + || true
-          find gaggimate-src/ -name "version*.py" -exec sed -i "s|return\s\+.*|return '$VERSION_STRING'|g" {} + || true
+          # Erase or mock the python generation file contents to stop it from overwriting our new header
+          find gaggimate-src/ -name "*version*.py" -exec echo "print('Bypassing version hook')" > {} \; || true
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
@@ -91,29 +92,10 @@ jobs:
           pio run -e display -t buildfs
           pio run -e display
           
-          # Dynamic target fallback extraction for display firmware parts
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
-          
-          # CORRECTED FILESYSTEM CAPTURE: Searches nested build outputs using dynamic wildcard parameters directly inside the compilation folder context
-          if [ -f ".pio/build/display/littlefs.bin" ]; then
-            cp .pio/build/display/littlefs.bin ../final-pages-site/display/filesystem.bin
-          elif [ -f ".pio/build/display/spiffs.bin" ]; then
-            cp .pio/build/display/spiffs.bin ../final-pages-site/display/filesystem.bin
-          elif [ -f ".pio/build/LilyGo-T-RGB/littlefs.bin" ]; then
-            cp .pio/build/LilyGo-T-RGB/littlefs.bin ../final-pages-site/display/filesystem.bin
-          elif [ -f ".pio/build/LilyGo-T-RGB/spiffs.bin" ]; then
-            cp .pio/build/LilyGo-T-RGB/spiffs.bin ../final-pages-site/display/filesystem.bin
-          else
-            # Deep fallback if names vary dynamically
-            FS_BIN=$(find .pio/build/ -type f \( -name "littlefs.bin" -o -name "spiffs.bin" \) | head -n 1)
-            if [ -n "$FS_BIN" ]; then
-              cp "$FS_BIN" ../final-pages-site/display/filesystem.bin
-            else
-              echo "WARNING: Filesystem asset binary skipped. Building with baseline structural layout."
-            fi
-          fi
+          cp .pio/build/display/littlefs.bin ../final-pages-site/display/filesystem.bin || cp .pio/build/display/spiffs.bin ../final-pages-site/display/filesystem.bin || cp .pio/build/LilyGo-T-RGB/littlefs.bin ../final-pages-site/display/filesystem.bin || cp .pio/build/LilyGo-T-RGB/spiffs.bin ../final-pages-site/display/filesystem.bin
           
           cd ..
           mkdir -p gaggimate-src/config gaggimate-src/scripts
@@ -157,7 +139,7 @@ jobs:
           cp final-pages-site/controller/bootloader.bin release-artifacts/board-bootloader.bin
           cp final-pages-site/controller/partitions.bin release-artifacts/board-partitions.bin
           
-          # Display (Safely packages filesystem image only if it was successfully extracted)
+          # Display
           cp final-pages-site/display/firmware.bin release-artifacts/display-firmware.bin
           cp final-pages-site/display/bootloader.bin release-artifacts/display-bootloader.bin
           cp final-pages-site/display/partitions.bin release-artifacts/display-partitions.bin
