@@ -25,13 +25,14 @@ jobs:
           repository: jniebuhr/gaggimate
           ref: master
           path: gaggimate-src
-          fetch-depth: 0 # MANDATORY: Fetches full code framework histories so git tag lineages exist natively
+          fetch-depth: 0 # Fetches full history so tag references are natively visible
 
       - name: Setup Node.js (Required for Web UI)
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
+      # UNALTERED FRONTEND BUILD: Prepares assets cleanly without affecting C++ core code
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
@@ -49,29 +50,41 @@ jobs:
             ./scripts/build_webui.sh
           fi
 
-      # AUTOMATED TAGGING: Feeds a clean, safe semantic tracking tag to the official upstream version script
+      # SAFE VERSION TAGGING: Feeds a clean, safe tag to the native scripts via standard Git logs
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
           cd gaggimate-src
           
-          # Pull the latest milestone release tag from the official repo context logs
+          # Pull the latest release tag from the official log history
           UPSTREAM_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.8.1")
           UPSTREAM_VERSION=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9.-]//g')
           [[ "$UPSTREAM_VERSION" != v* ]] && UPSTREAM_VERSION="v$UPSTREAM_VERSION"
           
-          # Append a clean, safe semantic tag tracking your high-precision timestamps and build runs
+          # Append a clean, high-precision timestamp tracking signature
           VERSION_STRING="${UPSTREAM_VERSION}-custom-nightly-$(date +'%Y%m%d%H%M%S')-${{ github.run_number }}"
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
           echo "$VERSION_STRING" > version.txt
           
-          # Configure standard dummy git identities inside the project container
+          # Configure dummy git identities inside the directory container
           git config --global user.email "automation@github.com"
           git config --global user.name "Actions Builder"
           
           # Create a real local tag. The native generate_version_header.py script will parse 
           # this tag perfectly, automatically writing a clean, bootable version.h file!
           git tag -f -a "$VERSION_STRING" -m "Automated config manager release update"
+
+      # APPLY OVERRIDES IN MEMORY: Runs your custom patches safely before compilation begins
+      - name: Inject and Apply Board Overrides Globally
+        run: |
+          mkdir -p gaggimate-src/config gaggimate-src/scripts
+          cp config-repo/config/board_override.json gaggimate-src/config/
+          cp config-repo/scripts/* gaggimate-src/scripts/
+          
+          cd gaggimate-src
+          chmod +x scripts/apply_board_override_patch.sh
+          python3 scripts/generate_board_override.py
+          ./scripts/apply_board_override_patch.sh
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
@@ -81,29 +94,22 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
+      # UNIFIED ENVIRONMENT COMPILATION: Uses global build flags to pass version numbers cleanly
       - name: Compile and Package All Firmware Targets
+        env:
+          PLATFORMIO_BUILD_FLAGS: '-D GAGGIMATE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\" -D FIRMWARE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\"'
         run: |
           pip install platformio
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cd gaggimate-src
           
-          # 1. Compile display firmware targets sequentially
+          # 1. Compile display environment targets with native project script pipelines intact
           pio run -e display
           
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
-          
-          cd ..
-          mkdir -p gaggimate-src/config gaggimate-src/scripts
-          cp config-repo/config/board_override.json gaggimate-src/config/
-          cp config-repo/scripts/* gaggimate-src/scripts/
-          
-          cd gaggimate-src
-          chmod +x scripts/apply_board_override_patch.sh
-          python3 scripts/generate_board_override.py
-          ./scripts/apply_board_override_patch.sh
           
           # 2. Compile controller firmware using the exact same native settings
           pio run -e controller
