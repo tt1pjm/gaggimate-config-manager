@@ -90,24 +90,12 @@ jobs:
           
           cd gaggimate-src
           
-          # 1. Compile display firmware AND force generate the data filesystem image binary block
-          pio run -e display -t buildfs
+          # 1. Compile display firmware cleanly (WebUI is baked straight inside firmware.bin)
           pio run -e display
           
-          # Dynamic target backup extraction for display firmware parts
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
-          
-          # ROBUST PATH DEEP-SEARCH: Scans the entire tree for any valid littlefs or spiffs image written by PlatformIO
-          FS_BIN=$(find .pio/build/ -type f \( -name "littlefs.bin" -o -name "spiffs.bin" \) | head -n 1)
-          if [ -n "$FS_BIN" ]; then
-            echo "Discovered compiled filesystem partition file asset at: $FS_BIN"
-            cp "$FS_BIN" ../final-pages-site/display/filesystem.bin
-          else
-            echo "CRITICAL RESOLUTION FAILED: PlatformIO did not output a valid filesystem block file image!"
-            exit 1
-          fi
           
           cd ..
           mkdir -p gaggimate-src/config gaggimate-src/scripts
@@ -155,7 +143,6 @@ jobs:
           cp final-pages-site/display/firmware.bin release-artifacts/display-firmware.bin
           cp final-pages-site/display/bootloader.bin release-artifacts/display-bootloader.bin
           cp final-pages-site/display/partitions.bin release-artifacts/display-partitions.bin
-          cp final-pages-site/display/filesystem.bin release-artifacts/display-filesystem.bin
 
       - name: Publish Custom OTA Release
         uses: softprops/action-gh-release@v2
@@ -174,4 +161,3 @@ jobs:
             release-artifacts/display-firmware.bin
             release-artifacts/display-bootloader.bin
             release-artifacts/display-partitions.bin
-            release-artifacts/display-filesystem.bin
