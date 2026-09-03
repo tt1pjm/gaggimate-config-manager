@@ -6,7 +6,7 @@ on:
     - cron: '0 2 * * *'
 
 permissions:
-  contents: write    # MANDATORY: Allows the runner to create releases and push tags
+  contents: write    # Required to overwrite and update the 'nightly' release tag
   pages: write
   id-token: write
 
@@ -18,7 +18,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: config-repo
-          fetch-depth: 0 # Fetches all history for proper tagging context
 
       - name: Checkout Upstream Gaggimate
         uses: actions/checkout@v4
@@ -58,6 +57,17 @@ jobs:
             ~/.platformio
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
+
+      # VERSION INJECTION STEP: Prevents displayVersion/controllerVersion from compilation as empty strings
+      - name: Inject Custom Version Metadata
+        run: |
+          # Create a mock semantic tag matching upstream version strings
+          VERSION_STRING="v1.8.1-custom-nightly-$(date +'%Y%m%d')"
+          echo "$VERSION_STRING" > gaggimate-src/version.txt
+          
+          # Force inject the version string into the codebase configurations to ensure the device reports it
+          # (Alters any fallback auto-version python script lookups inside the PlatformIO build files)
+          find gaggimate-src/ -name "version*.py" -exec sed -i "s|git describe.*|$VERSION_STRING|g" {} + || true
 
       - name: Compile and Package All Firmware Targets
         run: |
@@ -101,26 +111,40 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      # CORRECTED: Includes 'nightly' in the tag name so the Gaggimate updater maps it to the Nightly channel
-      - name: Create Unique Release Tag Version
-        id: release_vars
+      # STRUCTURE RE-ALIGNMENT: Bundles all distinct companion binaries matching upstream schemas exactly
+      - name: Prepare Official Release Structural Artifacts
+        id: release_prep
         run: |
-          # The literal word 'nightly' forces the Web UI to flag it as a valid update
-          TAG_NAME="nightly-$(date +'%Y.%m.%d')-${{ github.run_number }}"
-          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
-          
           mkdir -p release-artifacts
-          cp final-pages-site/controller/firmware.bin release-artifacts/controller.bin
-          cp final-pages-site/display/firmware.bin release-artifacts/display.bin
+          
+          # Generate the identical tracking version text file required by the update checker script
+          cp gaggimate-src/version.txt release-artifacts/version.txt
+          
+          # Package Controller binaries using Gaggimate naming conventions
+          cp final-pages-site/controller/firmware.bin release-artifacts/board-firmware.bin
+          cp final-pages-site/controller/bootloader.bin release-artifacts/board-bootloader.bin
+          cp final-pages-site/controller/partitions.bin release-artifacts/board-partitions.bin
+          
+          # Package Display binaries using Gaggimate naming conventions
+          cp final-pages-site/display/firmware.bin release-artifacts/display-firmware.bin
+          cp final-pages-site/display/bootloader.bin release-artifacts/display-bootloader.bin
+          cp final-pages-site/display/partitions.bin release-artifacts/display-partitions.bin
 
+      # PERMANENT OVERWRITE ROUTINE: Keeps the single static tag name "nightly" exactly like upstream
       - name: Publish Custom OTA Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release_vars.outputs.tag }}
-          name: "Gaggimate Custom Nightly Build ${{ steps.release_vars.outputs.tag }}"
-          body: "Automated custom pin map update tracking standard controller extension profiles."
+          tag_name: "nightly"
+          name: "Nightly Release"
+          body: "Official custom tracking workspace build channel for standard controller extension profiles."
           draft: false
-          prerelease: true # Confirms it as a development release
+          prerelease: true
+          make_latest: true
           files: |
-            release-artifacts/controller.bin
-            release-artifacts/display.bin
+            release-artifacts/version.txt
+            release-artifacts/board-firmware.bin
+            release-artifacts/board-bootloader.bin
+            release-artifacts/board-partitions.bin
+            release-artifacts/display-firmware.bin
+            release-artifacts/display-bootloader.bin
+            release-artifacts/display-partitions.bin
