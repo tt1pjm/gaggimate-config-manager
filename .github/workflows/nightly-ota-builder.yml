@@ -58,10 +58,11 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # INJECT VERSION FIX: Replaces fallback empty macros with hardwired version metrics globally
+      # HIGH-PRECISION INJECTION: Switches versioning to timestamps to allow multiple OTA tests per day
       - name: Inject Custom Version Metadata
         run: |
-          VERSION_STRING="v1.8.1-custom-nightly-$(date +'%Y%m%d')"
+          # Generates a string incorporating Date, Precise Time, and Build Run Number (e.g., v1.8.1-custom-nightly-20260903143210-48)
+          VERSION_STRING="v1.8.1-custom-nightly-$(date +'%Y%m%d%H%M%S')-${{ github.run_number }}"
           echo "$VERSION_STRING" > gaggimate-src/version.txt
           
           # Force set the firmware version string inside any python build utility hooks
