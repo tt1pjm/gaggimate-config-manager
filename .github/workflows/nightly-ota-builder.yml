@@ -56,6 +56,7 @@ jobs:
           echo "Syncing GitHub Deployment Tracking Version To: $VERSION_STRING"
           echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
           echo "$VERSION_STRING" > version.txt
+          cd ..
 
       - name: Setup Node.js (Required for Web UI)
         uses: actions/setup-node@v4
