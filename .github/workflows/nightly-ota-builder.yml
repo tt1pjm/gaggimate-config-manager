@@ -63,9 +63,12 @@ jobs:
         with:
           node-version: '18'
 
+      # RE-ROUTING STEP: Swaps out the hardcoded C++ network check URLs to point to your repository
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
+          
+          # 1. Update the React frontend web panel variables
           if [ -d "web" ]; then
             cd web
             find . -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
@@ -73,6 +76,10 @@ jobs:
             npm run build
             cd ..
           fi
+          
+          # 2. Update the core C++ network utility files where update URLs are defined
+          # This sweeps through all source files and swaps out the hardcoded GitHub URL pointers safely
+          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
           
           mkdir -p src/display/webassets
           if [ -f "scripts/build_webui.sh" ]; then
