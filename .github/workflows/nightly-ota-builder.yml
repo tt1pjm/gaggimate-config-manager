@@ -92,8 +92,14 @@ jobs:
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # DYNAMIC LOCAL EXTRACTION: Runs inside the current subfolder context to pull the true version metrics
-          EXTRACTED_VERSION=$(git describe --tags --always --dirty --exclude "nightly*" 2>/dev/null)
+          # DIRECT FILE INSPECTION: Extracts the exact compiler-validated version from the generated header file
+          # This completely bypasses Git boundary restrictions and shallow-clone tag failures
+          EXTRACTED_VERSION=""
+          if [ -f "src/generated/version.h" ]; then
+            EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" src/generated/version.h | head -n 1 | awk -F'"' '{print $2}')
+          fi
+          
+          # Clean out leading 'v' characters for text parser compatibility
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
           
           # Writes the identical string used in compilation directly to your server deployment file
