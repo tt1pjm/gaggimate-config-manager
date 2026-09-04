@@ -68,49 +68,35 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # PINPOINT LIB RE-ROUTING: Swaps URLs and forces a target-specific object file purge
+# SAFE C++ TARGET REWRITING: Modifies all C++ source files while completely protecting the web assets
       - name: Pinpoint Core C++ URL Redirection
         run: |
           cd gaggimate-src
           
-          # 1. Update the shared library configuration files
-          find lib/GaggiMateOTA/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-          find src/common/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-          
-          # 2. FORCE TARGET RECOMPILE: Deletes only the pre-compiled object file chunks for common network utilities
-          # This forces PlatformIO to cleanly rebuild your update URL routes while preserving the rest of the build cache
-          find .pio/build/ -type f -name "*common*.o" -delete || true
-          find .pio/build/ -type f -name "*OTA*.o" -delete || true
+          # Runs the text replacement on all C++ headers and implementation source code files
+          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
 
       - name: Compile and Package All Firmware Targets
+        env:
+          PLATFORMIO_BUILD_FLAGS: '-D GAGGIMATE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\" -D FIRMWARE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\"'
         run: |
           pip install platformio
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cd gaggimate-src
           
-          # Force clean target compilation
-          pio run -e display -t clean
+          # Force PlatformIO to completely re-evaluate the display environment 
+          # by deleting the local build directory before compiling
+          rm -rf .pio/build/display
           pio run -e display
           
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # DYNAMIC CAPTURE: Reads the exact version string that the firmware naturally compiled with
-          if [ -f "src/generated/version.h" ]; then
-            EXTRACTED_VERSION=$(grep "FIRMWARE_VERSION" src/generated/version.h | awk -F'"' '{print $2}')
-          fi
-          if [ -z "$EXTRACTED_VERSION" ]; then
-            EXTRACTED_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "1.8.1-173-gfb8fa48b-dirty")
-          fi
-          
-          # Clean leading 'v' symbols to fit the application parser parameters perfectly
-          VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
-          echo "v$VERSION_CLEAN" > version.txt
-          echo "Extracted Authenticated Code Version: $VERSION_CLEAN"
-          
-          pio run -e controller -t clean
+          # Clean and compile controller firmware
+          rm -rf .pio/build/controller
           pio run -e controller
           
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
@@ -122,7 +108,6 @@ jobs:
           cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
           cp config-repo/display/manifest.json final-pages-site/display/manifest.json
           
-          # CACHE BUSTER: Invalidates browser asset cache layers instantly
           TIMESTAMP_CACHE=$(date +%s)
           sed -i "s|\.bin|\.bin?v=${TIMESTAMP_CACHE}|g" final-pages-site/controller/manifest.json
           sed -i "s|\.bin|\.bin?v=${TIMESTAMP_CACHE}|g" final-pages-site/display/manifest.json
