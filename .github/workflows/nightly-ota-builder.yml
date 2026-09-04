@@ -60,13 +60,6 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
 
-      # PINPOINT LIB RE-ROUTING: Swaps the hardcoded update URL strings cleanly inside the shared library files
-      - name: Pinpoint Core C++ URL Redirection
-        run: |
-          cd gaggimate-src
-          find lib/GaggiMateOTA/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-          find src/common/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-
       - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
@@ -74,6 +67,13 @@ jobs:
             ~/.platformio
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
+
+      # PINPOINT LIB RE-ROUTING: Swaps the hardcoded update URL strings cleanly inside the shared library files
+      - name: Pinpoint Core C++ URL Redirection
+        run: |
+          cd gaggimate-src
+          find lib/GaggiMateOTA/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          find src/common/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
 
       - name: Compile and Package All Firmware Targets
         run: |
