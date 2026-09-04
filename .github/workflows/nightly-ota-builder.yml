@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: '18'
 
-      # PINPOINT RE-ROUTING: Modifies only the network utility code files to protect WebUI asset layers
+      # PINPOINT LIB RE-ROUTING: Swaps the hardcoded URL string inside the shared OTA network library
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
@@ -44,6 +44,16 @@ jobs:
             npm ci
             npm run build
             cd ..
+          fi
+          
+          # 2. Pinpoint library rewriting: Target the shared OTA C++ utility library files directly
+          find lib/GaggiMateOTA/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          find src/common/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          
+          mkdir -p src/display/webassets
+          if [ -f "scripts/build_webui.sh" ]; then
+            chmod +x scripts/build_webui.sh
+            ./scripts/build_webui.sh
           fi
           
           # 2. Pinpoint target rewriting: Modifies ONLY the explicit C++ update utility files
