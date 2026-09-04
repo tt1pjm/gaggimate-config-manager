@@ -29,35 +29,32 @@ jobs:
           fetch-depth: 0    # Pulls all historical data layers
           tags: true        # Includes original project version markers
 
-      # CORRECTED LOGIC: Forces the script to write the true semantic version code instead of the tag string
+      # FUTURE-PROOF: Removes all hardcoded fallbacks by explicitly excluding local release tags
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
           cd gaggimate-src
           
-          # Run the official upstream script loop to ensure files are fully updated
-          if [ -f "scripts/generate_version_header.py" ]; then
-            python3 scripts/generate_version_header.py || true
-          fi
+          # 1. Pull the absolute latest real milestone release tag from upstream, explicitly ignoring our local 'nightly' tag
+          UPSTREAM_VERSION=$(git describe --tags --abbrev=0 --exclude "nightly*" 2>/dev/null)
           
-          # 1. Read the exact dynamic string compiled into the source headers natively
-          if [ -f "src/generated/version.h" ]; then
-            VERSION_STRING=$(grep "FIRMWARE_VERSION" src/generated/version.h | awk -F'"' '{print $2}' || echo "")
-          fi
+          # 2. Extract the local 7-character short commit hash of the snapshot we are compiling
+          COMMIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "custom")
           
-          # 2. Fallback check if the string format requires direct local Git evaluation
-          if [ -z "$VERSION_STRING" ]; then
-            VERSION_STRING=$(git describe --tags --always --dirty 2>/dev/null || echo "v1.8.1")
-          fi
+          # Strip the leading 'v' and any special characters to keep the formatting clean for the device's C++ parser
+          VERSION_STRING=$(echo "$UPSTREAM_VERSION" | sed 's/^v//g' | sed 's/[^a-zA-Z0-9.-]//g')
           
-          # Strip out any leading 'v' characters to match the Gaggimate text parser expectations perfectly
-          VERSION_STRING=$(echo "$VERSION_STRING" | sed 's/^v//g')
+          # 3. Assemble the standard Gaggimate format version string using our dynamic indicators
+          # Structure: version - run_number - git_hash - dirty modifier
+          FINAL_VERSION="${VERSION_STRING}-${{ github.run_number }}-g${COMMIT_HASH}-dirty"
           
-          echo "Syncing GitHub Deployment Tracking Version To: $VERSION_STRING"
-          echo "firmware_version=$VERSION_STRING" >> $GITHUB_OUTPUT
+          echo "Discovered Core Upstream Version Tag: $UPSTREAM_VERSION"
+          echo "Assembled Standalone Target Version String: $FINAL_VERSION"
           
-          # FIX: Overwrites version.txt with the explicit hash identifier string (e.g. 1.8.1-173-gfb8fa48b)
-          echo "$VERSION_STRING" > version.txt
+          echo "firmware_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
+          
+          # Overwrite version.txt with the explicit hash string
+          echo "$FINAL_VERSION" > version.txt
           cd ..
 
       - name: Setup Node.js (Required for Web UI)
