@@ -19,68 +19,23 @@ jobs:
         with:
           path: config-repo
 
-      # FIX: Fetches the absolute Git commit tree history and release milestones natively
       - name: Checkout Upstream Gaggimate
         uses: actions/checkout@v4
         with:
           repository: jniebuhr/gaggimate
           ref: master
           path: gaggimate-src
-          fetch-depth: 0    # Pulls all historical data layers
-          tags: true        # Includes original project version markers
-
-      # FUTURE-PROOF: Extracts the clean number from the common version header file
-      - name: Inject Custom Version Metadata
-        id: version_vars
-        run: |
-          cd gaggimate-src
-          
-          # 1. Parse the explicit version string from the common source header file
-          if [ -f "src/common/version.h" ]; then
-            UPSTREAM_VERSION=$(grep "GAGGIMATE_VERSION" src/common/version.h | awk -F'"' '{print $2}')
-          fi
-          
-          # Fallback to web package manifest definitions if the header file isn't populated yet
-          if [ -z "$UPSTREAM_VERSION" ] && [ -f "web/package.json" ]; then
-            UPSTREAM_VERSION=$(grep '"version":' web/package.json | awk -F'"' '{print $4}')
-          fi
-          
-          # Absolute safety baseline if all file reads fail
-          if [ -z "$UPSTREAM_VERSION" ]; then
-            UPSTREAM_VERSION="1.8.1"
-          fi
-          
-          # 2. Extract the local 7-character short commit hash of the snapshot we are compiling
-          COMMIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "custom")
-          
-          # Strip out any potential stray formatting symbols to keep the string safe for the C++ compiler
-          VERSION_CLEAN=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9.-]//g')
-          
-          # 3. Assemble the standard Gaggimate format version string
-          FINAL_VERSION="${VERSION_CLEAN}-${{ github.run_number }}-g${COMMIT_HASH}-dirty"
-          
-          echo "Discovered Core Upstream Version Baseline: $VERSION_CLEAN"
-          echo "Assembled Standalone Target Version String: $FINAL_VERSION"
-
-          # TEST BLOCK: Forces a high version number to simulate a newer cloud release
-          FINAL_VERSION="${VERSION_CLEAN}-200-g${COMMIT_HASH}-dirty"
-          echo "firmware_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
-          
-          # Overwrite version.txt with the explicit hash string
-          echo "v$FINAL_VERSION" > version.txt
-          cd ..
+          fetch-depth: 0
 
       - name: Setup Node.js (Required for Web UI)
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # RE-ROUTING STEP: Swaps out the hardcoded C++ network check URLs to point to your repository
+      # RE-ROUTING FIX: Modifies ONLY the frontend Web UI assets, leaving C++ system parameters untouched
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
-          
-          # 1. Update the React frontend web panel variables
           if [ -d "web" ]; then
             cd web
             find . -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
@@ -89,15 +44,33 @@ jobs:
             cd ..
           fi
           
-          # 2. Update the core C++ network utility files where update URLs are defined
-          # This sweeps through all source files and swaps out the hardcoded GitHub URL pointers safely
-          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
-          
           mkdir -p src/display/webassets
           if [ -f "scripts/build_webui.sh" ]; then
             chmod +x scripts/build_webui.sh
             ./scripts/build_webui.sh
           fi
+
+      - name: Inject Custom Version Metadata
+        id: version_vars
+        run: |
+          cd gaggimate-src
+          if [ -f "src/common/version.h" ]; then
+            UPSTREAM_VERSION=$(grep "GAGGIMATE_VERSION" src/common/version.h | awk -F'"' '{print $2}')
+          fi
+          if [ -z "$UPSTREAM_VERSION" ] && [ -f "web/package.json" ]; then
+            UPSTREAM_VERSION=$(grep '"version":' web/package.json | awk -F'"' '{print $4}')
+          fi
+          if [ -z "$UPSTREAM_VERSION" ]; then
+            UPSTREAM_VERSION="1.8.1"
+          fi
+          
+          COMMIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "custom")
+          VERSION_CLEAN=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9.-]//g')
+          FINAL_VERSION="${VERSION_CLEAN}-${{ github.run_number }}-g${COMMIT_HASH}-dirty"
+          
+          echo "firmware_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
+          echo "v$FINAL_VERSION" > version.txt
+          cd ..
 
       - name: Inject and Apply Board Overrides Globally
         run: |
@@ -118,6 +91,7 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
+      # UNIFIED ENVIRONMENT COMPILATION: Uses global build flags cleanly with no file-corrupting sed steps
       - name: Compile and Package All Firmware Targets
         env:
           PLATFORMIO_BUILD_FLAGS: '-D GAGGIMATE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\" -D FIRMWARE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\"'
@@ -126,15 +100,12 @@ jobs:
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cd gaggimate-src
-          
-          # 1. Compile display firmware natively
           pio run -e display
           
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # 2. Compile controller firmware
           pio run -e controller
           
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
