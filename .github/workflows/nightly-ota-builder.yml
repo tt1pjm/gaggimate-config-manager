@@ -92,16 +92,12 @@ jobs:
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # PINPOINT DIRECTORY SAFE LOCK OVERRIDE:
-          # Tells the Git engine that it is secure to query the nested upstream history records
-          git config --global --add safe.directory "$GITHUB_WORKSPACE/gaggimate-src"
-          
-          # Dynamically extracts the identical Git string used by PlatformIO natively
-          EXTRACTED_VERSION=$(git -C gaggimate-src describe --tags --always --dirty 2>/dev/null)
+          # DYNAMIC LOCAL EXTRACTION: Runs inside the current subfolder context to pull the true version metrics
+          EXTRACTED_VERSION=$(git describe --tags --always --dirty --exclude "nightly*" 2>/dev/null)
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
           
           # Writes the identical string used in compilation directly to your server deployment file
-          echo "v$VERSION_CLEAN" > gaggimate-src/version.txt
+          echo "v$VERSION_CLEAN" > version.txt
           echo "Validated Sync Version Target: v$VERSION_CLEAN"
           
           # Clean and compile controller firmware
