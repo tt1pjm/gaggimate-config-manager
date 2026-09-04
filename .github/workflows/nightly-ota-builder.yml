@@ -25,7 +25,7 @@ jobs:
           repository: jniebuhr/gaggimate
           ref: master
           path: gaggimate-src
-          fetch-depth: 0 # Ensures the native version script can read the real upstream commit count
+          fetch-depth: 0
 
       - name: Setup Node.js (Required for Web UI)
         uses: actions/setup-node@v4
@@ -49,6 +49,28 @@ jobs:
             ./scripts/build_webui.sh
           fi
 
+      - name: Inject Custom Version Metadata
+        id: version_vars
+        run: |
+          cd gaggimate-src
+          if [ -f "src/common/version.h" ]; then
+            UPSTREAM_VERSION=$(grep "GAGGIMATE_VERSION" src/common/version.h | awk -F'"' '{print $2}')
+          fi
+          if [ -z "$UPSTREAM_VERSION" ] && [ -f "web/package.json" ]; then
+            UPSTREAM_VERSION=$(grep '"version":' web/package.json | awk -F'"' '{print $4}')
+          fi
+          if [ -z "$UPSTREAM_VERSION" ]; then
+            UPSTREAM_VERSION="1.8.1"
+          fi
+          
+          COMMIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "custom")
+          VERSION_CLEAN=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9.-]//g')
+          FINAL_VERSION="${VERSION_CLEAN}-${{ github.run_number }}-g${COMMIT_HASH}-dirty"
+          
+          echo "firmware_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
+          echo "v$FINAL_VERSION" > version.txt
+          cd ..
+
       - name: Inject and Apply Board Overrides Globally
         run: |
           mkdir -p gaggimate-src/config gaggimate-src/scripts
@@ -60,22 +82,21 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
 
+      - name: Pinpoint Core C++ URL Redirection
+        run: |
+          cd gaggimate-src
+          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+
       - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
           path: |
             ~/.platformio
             gaggimate-src/.pio
-          key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
-
-# SAFE C++ TARGET REWRITING: Modifies all C++ source files while completely protecting the web assets
-      - name: Pinpoint Core C++ URL Redirection
-        run: |
-          cd gaggimate-src
-          
-          # Runs the text replacement on all C++ headers and implementation source code files
-          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-          find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}-${{ github.run_number }}
+          restore-keys: |
+            ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}-
 
       - name: Compile and Package All Firmware Targets
         env:
@@ -85,9 +106,6 @@ jobs:
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cd gaggimate-src
-          
-          # Force PlatformIO to completely re-evaluate the display environment 
-          # by deleting the local build directory before compiling
           rm -rf .pio/build/display
           pio run -e display
           
@@ -95,7 +113,6 @@ jobs:
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # Clean and compile controller firmware
           rm -rf .pio/build/controller
           pio run -e controller
           
@@ -121,6 +138,7 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+      # CORRECTED ABSOLUTE MAPPING PATHS: Pulls 'version.txt' from the explicit gaggimate-src subdirectory layer
       - name: Prepare Official Release Structural Artifacts
         id: release_prep
         run: |
