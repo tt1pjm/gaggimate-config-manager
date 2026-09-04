@@ -82,7 +82,6 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
 
-      # FORCE LIB MODIFICATIONS: Re-routes all hardcoded update channels right inside the codebase libraries
       - name: Pinpoint Core C++ URL Redirection
         run: |
           cd gaggimate-src
@@ -97,7 +96,6 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # FORCE CACHE PURGE: Runs clean targets to guarantee un-cached compilation cycles
       - name: Compile and Package All Firmware Targets
         env:
           PLATFORMIO_BUILD_FLAGS: '-D GAGGIMATE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\" -D FIRMWARE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\"'
@@ -107,17 +105,14 @@ jobs:
           
           cd gaggimate-src
           
-          # Force clear old cached binary artifacts out of the memory loop
+          # Force PlatformIO to drop old cached structural binaries out of memory
           pio run -e display -t clean
-          
-          # Build display natively with clean configuration updates
           pio run -e display
           
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # Build controller cleanly
           pio run -e controller -t clean
           pio run -e controller
           
@@ -130,8 +125,7 @@ jobs:
           cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
           cp config-repo/display/manifest.json final-pages-site/display/manifest.json
           
-          # CACHE BUSTER: Appends a dynamic tracking query parameter right into the manifest paths
-          # This forces GitHub's CDN edge servers to completely drop old cached binary files instantly
+          # CACHE BUSTER: Invalidates the edge server cache definitions instantly
           TIMESTAMP_CACHE=$(date +%s)
           sed -i "s|\.bin|\.bin?v=${TIMESTAMP_CACHE}|g" final-pages-site/controller/manifest.json
           sed -i "s|\.bin|\.bin?v=${TIMESTAMP_CACHE}|g" final-pages-site/display/manifest.json
