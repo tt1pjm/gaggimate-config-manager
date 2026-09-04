@@ -29,21 +29,23 @@ jobs:
           fetch-depth: 0    # Pulls all historical data layers
           tags: true        # Includes original project version markers
 
-      # FUTURE-PROOF: Reads the clean version straight from project configuration files
+      # FUTURE-PROOF: Extracts the clean number from the common version header file
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
           cd gaggimate-src
           
-          # 1. Parse the explicit project version string out of the platformio.ini text configuration file
-          UPSTREAM_VERSION=$(grep -m 1 "version =" platformio.ini | awk -F'"' '{print $2}')
-          
-          # Fallback check if the key syntax varies slightly across upstream branch updates
-          if [ -z "$UPSTREAM_VERSION" ]; then
-            UPSTREAM_VERSION=$(grep -m 1 "version" platformio.ini | awk '{print $3}' | tr -d '"')
+          # 1. Parse the explicit version string from the common source header file
+          if [ -f "src/common/version.h" ]; then
+            UPSTREAM_VERSION=$(grep "GAGGIMATE_VERSION" src/common/version.h | awk -F'"' '{print $2}')
           fi
           
-          # Ultimate safety fallback if platformio.ini is completely unreadable
+          # Fallback to web package manifest definitions if the header file isn't populated yet
+          if [ -z "$UPSTREAM_VERSION" ] && [ -f "web/package.json" ]; then
+            UPSTREAM_VERSION=$(grep '"version":' web/package.json | awk -F'"' '{print $4}')
+          fi
+          
+          # Absolute safety baseline if all file reads fail
           if [ -z "$UPSTREAM_VERSION" ]; then
             UPSTREAM_VERSION="1.8.1"
           fi
@@ -54,8 +56,7 @@ jobs:
           # Strip out any potential stray formatting symbols to keep the string safe for the C++ compiler
           VERSION_CLEAN=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9.-]//g')
           
-          # 3. Assemble the standard Gaggimate format version string using our dynamic indicators
-          # Structure: version - run_number - git_hash - dirty modifier
+          # 3. Assemble the standard Gaggimate format version string
           FINAL_VERSION="${VERSION_CLEAN}-${{ github.run_number }}-g${COMMIT_HASH}-dirty"
           
           echo "Discovered Core Upstream Version Baseline: $VERSION_CLEAN"
