@@ -32,37 +32,15 @@ jobs:
         with:
           node-version: '18'
 
-      # PINPOINT LIB RE-ROUTING: Swaps the hardcoded URL string inside the shared OTA network library
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
-          
-          # 1. Update the React frontend web panel variables cleanly
           if [ -d "web" ]; then
             cd web
             find . -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
             npm ci
             npm run build
             cd ..
-          fi
-          
-          # 2. Pinpoint library rewriting: Target the shared OTA C++ utility library files directly
-          find lib/GaggiMateOTA/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-          find src/common/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-          
-          mkdir -p src/display/webassets
-          if [ -f "scripts/build_webui.sh" ]; then
-            chmod +x scripts/build_webui.sh
-            ./scripts/build_webui.sh
-          fi
-          
-          # 2. Pinpoint target rewriting: Modifies ONLY the explicit C++ update utility files
-          # This redirects the network checks safely without corrupting any WebUI plugins or socket paths
-          if [ -f "src/common/common.cpp" ]; then
-            sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' src/common/common.cpp
-          fi
-          if [ -f "src/display/core/common.cpp" ]; then
-            sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' src/display/core/common.cpp
           fi
           
           mkdir -p src/display/webassets
@@ -104,6 +82,13 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
 
+      # FORCE LIB MODIFICATIONS: Re-routes all hardcoded update channels right inside the codebase libraries
+      - name: Pinpoint Core C++ URL Redirection
+        run: |
+          cd gaggimate-src
+          find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+
       - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
@@ -112,7 +97,7 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # UNIFIED ENVIRONMENT COMPILATION: Injects your repository name cleanly into the C++ macro layer
+      # FORCE CACHE PURGE: Runs clean targets to guarantee un-cached compilation cycles
       - name: Compile and Package All Firmware Targets
         env:
           PLATFORMIO_BUILD_FLAGS: '-D GAGGIMATE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\" -D FIRMWARE_VERSION=\"${{ steps.version_vars.outputs.firmware_version }}\"'
@@ -121,12 +106,19 @@ jobs:
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cd gaggimate-src
+          
+          # Force clear old cached binary artifacts out of the memory loop
+          pio run -e display -t clean
+          
+          # Build display natively with clean configuration updates
           pio run -e display
           
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
+          # Build controller cleanly
+          pio run -e controller -t clean
           pio run -e controller
           
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
