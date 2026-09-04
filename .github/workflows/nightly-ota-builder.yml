@@ -88,13 +88,17 @@ jobs:
           find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
           find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
 
+      # CACHE INVALIDATION: Forces the cloud runner to drop old .pio data states on every single run
       - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
           path: |
             ~/.platformio
             gaggimate-src/.pio
-          key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
+          # Adding the unique run number guarantees that PlatformIO will re-evaluate every single file naturally
+          key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}-${{ github.run_number }}
+          restore-keys: |
+            ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}-
 
       - name: Compile and Package All Firmware Targets
         env:
