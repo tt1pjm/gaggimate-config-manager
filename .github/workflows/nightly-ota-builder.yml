@@ -92,20 +92,16 @@ jobs:
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # DYNAMIC COPIER LAYER: Directly extracts the exact same Git string used by PlatformIO
-          # This guarantees version.txt perfectly mirrors your compiled binaries without hardcoded text fallbacks
-          EXTRACTED_VERSION=$(git -C gaggimate-src describe --tags --always --dirty 2>/dev/null)
+          # PINPOINT DIRECTORY SAFE LOCK OVERRIDE:
+          # Tells the Git engine that it is secure to query the nested upstream history records
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/gaggimate-src"
           
-          # Clean out leading 'v' characters to match the Gaggimate text parser expectations perfectly
+          # Dynamically extracts the identical Git string used by PlatformIO natively
+          EXTRACTED_VERSION=$(git -C gaggimate-src describe --tags --always --dirty 2>/dev/null)
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
           
-          # Safety baseline check if the repository context lags during the execution run
-          if [ -z "$VERSION_CLEAN" ] || [ "$VERSION_CLEAN" = "v" ]; then
-            VERSION_CLEAN="1.8.1-174-g61cacea5-dirty"
-          fi
-          
           # Writes the identical string used in compilation directly to your server deployment file
-          echo "v$VERSION_CLEAN" > version.txt
+          echo "v$VERSION_CLEAN" > gaggimate-src/version.txt
           echo "Validated Sync Version Target: v$VERSION_CLEAN"
           
           # Clean and compile controller firmware
