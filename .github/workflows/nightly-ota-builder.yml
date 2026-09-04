@@ -27,14 +27,16 @@ jobs:
           path: gaggimate-src
           fetch-depth: 0
 
-      - name: Setup Node.js (Required for Web UI)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
+      # HARD WEBUI PURGE: Forces a complete rebuild of the compressed web asset headers
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
+          
+          # Force delete any old pre-compiled web header layouts left over in the workspace
+          rm -rf src/display/webassets/*
+          rm -f src/generated/version.h
+          
+          # Clean and rebuild the React/Preact interface files
           if [ -d "web" ]; then
             cd web
             find . -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
