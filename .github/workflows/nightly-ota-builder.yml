@@ -32,16 +32,27 @@ jobs:
         with:
           node-version: '18'
 
-      # RE-ROUTING FIX: Modifies ONLY the frontend Web UI assets, leaving C++ system parameters untouched
+      # PINPOINT RE-ROUTING: Modifies only the network utility code files to protect WebUI asset layers
       - name: Build WebUI Frontend Assets
         run: |
           cd gaggimate-src
+          
+          # 1. Update the React frontend web panel variables cleanly
           if [ -d "web" ]; then
             cd web
             find . -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
             npm ci
             npm run build
             cd ..
+          fi
+          
+          # 2. Pinpoint target rewriting: Modifies ONLY the explicit C++ update utility files
+          # This redirects the network checks safely without corrupting any WebUI plugins or socket paths
+          if [ -f "src/common/common.cpp" ]; then
+            sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' src/common/common.cpp
+          fi
+          if [ -f "src/display/core/common.cpp" ]; then
+            sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' src/display/core/common.cpp
           fi
           
           mkdir -p src/display/webassets
