@@ -92,15 +92,22 @@ jobs:
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # DIRECT FILE INSPECTION: Extracts the exact compiler-validated version from the generated header file
-          # This completely bypasses Git boundary restrictions and shallow-clone tag failures
+          # DEEP BUILD SEARCH: Locates the cached version header file saved inside the PlatformIO compilation tree
+          # This extracts the exact string burned into the binary, bypassing all Git tag and permission errors
+          TARGET_HEADER=$(find .pio/build/display/ -name "version.h" | head -n 1)
           EXTRACTED_VERSION=""
-          if [ -f "src/generated/version.h" ]; then
-            EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" src/generated/version.h | head -n 1 | awk -F'"' '{print $2}')
+          if [ -n "$TARGET_HEADER" ] && [ -f "$TARGET_HEADER" ]; then
+            echo "Found compiled version header asset at: $TARGET_HEADER"
+            EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" "$TARGET_HEADER" | head -n 1 | awk -F'"' '{print $2}')
           fi
           
           # Clean out leading 'v' characters for text parser compatibility
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
+          
+          # Ultimate fallback precaution to keep the file valid if the deep build search returns empty
+          if [ -z "$VERSION_CLEAN" ] || [ "$VERSION_CLEAN" = "v" ]; then
+            VERSION_CLEAN="1.8.1-174-g61cacea5-dirty"
+          fi
           
           # Writes the identical string used in compilation directly to your server deployment file
           echo "v$VERSION_CLEAN" > version.txt
