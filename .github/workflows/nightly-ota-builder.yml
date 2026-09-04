@@ -68,12 +68,19 @@ jobs:
             gaggimate-src/.pio
           key: ${{ runner.os }}-pio-${{ hashFiles('gaggimate-src/platformio.ini') }}
 
-      # PINPOINT LIB RE-ROUTING: Swaps the hardcoded update URL strings cleanly inside the shared library files
+      # PINPOINT LIB RE-ROUTING: Swaps URLs and forces a target-specific object file purge
       - name: Pinpoint Core C++ URL Redirection
         run: |
           cd gaggimate-src
+          
+          # 1. Update the shared library configuration files
           find lib/GaggiMateOTA/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
           find src/common/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          
+          # 2. FORCE TARGET RECOMPILE: Deletes only the pre-compiled object file chunks for common network utilities
+          # This forces PlatformIO to cleanly rebuild your update URL routes while preserving the rest of the build cache
+          find .pio/build/ -type f -name "*common*.o" -delete || true
+          find .pio/build/ -type f -name "*OTA*.o" -delete || true
 
       - name: Compile and Package All Firmware Targets
         run: |
