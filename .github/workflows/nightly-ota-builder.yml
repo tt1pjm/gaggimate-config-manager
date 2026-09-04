@@ -61,7 +61,9 @@ jobs:
           
           echo "Discovered Core Upstream Version Baseline: $VERSION_CLEAN"
           echo "Assembled Standalone Target Version String: $FINAL_VERSION"
-          
+
+          # TEST BLOCK: Forces a high version number to simulate a newer cloud release
+          FINAL_VERSION="${VERSION_CLEAN}-200-g${COMMIT_HASH}-dirty"
           echo "firmware_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
           
           # Overwrite version.txt with the explicit hash string
