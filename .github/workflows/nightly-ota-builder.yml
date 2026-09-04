@@ -60,11 +60,11 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
 
-      - name: Pinpoint Core C++ URL Redirection
-        run: |
-          cd gaggimate-src
-          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-          find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+      # - name: Pinpoint Core C++ URL Redirection
+      #   run: |
+      #     cd gaggimate-src
+      #     find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+      #     find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
 
       # SINGLE VALID CACHE INSTANCE: Tracks project configuration increments safely
       - name: Cache PlatformIO
@@ -84,37 +84,44 @@ jobs:
           
           cd gaggimate-src
           
-          # Force clean target compilation to let native version header generators run fresh
+          # 1. Clear caches and generate the true display firmware headers natively
           rm -rf .pio/build/display
+          if [ -f "scripts/generate_version_header.py" ]; then
+            python3 scripts/generate_version_header.py || true
+          fi
           pio run -e display
           
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # DEEP BUILD SEARCH: Locates the cached version header file saved inside the PlatformIO compilation tree
-          # This extracts the exact string burned into the binary, bypassing all Git tag and permission errors
+          # DEEP BUILD SEARCH: Captures the correct version string directly from the compiler's output directory
           TARGET_HEADER=$(find .pio/build/display/ -name "version.h" | head -n 1)
           EXTRACTED_VERSION=""
           if [ -n "$TARGET_HEADER" ] && [ -f "$TARGET_HEADER" ]; then
-            echo "Found compiled version header asset at: $TARGET_HEADER"
             EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" "$TARGET_HEADER" | head -n 1 | awk -F'"' '{print $2}')
           fi
           
-          # Clean out leading 'v' characters for text parser compatibility
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
-          
-          # Ultimate fallback precaution to keep the file valid if the deep build search returns empty
           if [ -z "$VERSION_CLEAN" ] || [ "$VERSION_CLEAN" = "v" ]; then
             VERSION_CLEAN="1.8.1-174-g61cacea5-dirty"
           fi
           
-          # Writes the identical string used in compilation directly to your server deployment file
           echo "v$VERSION_CLEAN" > version.txt
           echo "Validated Sync Version Target: v$VERSION_CLEAN"
           
-          # Clean and compile controller firmware
+          # 2. Clear caches and generate the true controller firmware headers natively
           rm -rf .pio/build/controller
+          if [ -f "scripts/generate_version_header.py" ]; then
+            python3 scripts/generate_version_header.py || true
+          fi
+          
+          # 3. SAFE REDIRECTION SWITCH: We execute the text swap right here, 
+          # AFTER both version headers are securely locked onto disk
+          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          
+          # Compile controller firmware with the uncorrupted version definitions
           pio run -e controller
           
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
