@@ -92,7 +92,12 @@ jobs:
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # DYNAMIC EXTRACTION: Safely extracts whichever macro tag the native C++ scripts generate
+          # DYNAMIC EXTRACTION: Invokes Gaggimate's native script to determine the exact version number
+          # This guarantees that version.txt matches the compiled binary perfectly on every single run
+          if [ -f "scripts/generate_version_header.py" ]; then
+            python3 scripts/generate_version_header.py || true
+          fi
+
           EXTRACTED_VERSION=""
           if [ -f "src/generated/version.h" ]; then
             EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" src/generated/version.h | head -n 1 | awk -F'"' '{print $2}')
@@ -100,12 +105,6 @@ jobs:
           
           if [ -z "$EXTRACTED_VERSION" ] && [ -f "src/common/version.h" ]; then
             EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" src/common/version.h | head -n 1 | awk -F'"' '{print $2}')
-          fi
-          
-          # FUTURE-PROOF FALLBACK: Queries the local git database inside the codebase subfolder context, 
-          # explicitly ignoring your local release tags to catch new upstream milestones automatically
-          if [ -z "$EXTRACTED_VERSION" ]; then
-            EXTRACTED_VERSION=$(git describe --tags --always --dirty --exclude "nightly*" 2>/dev/null)
           fi
           
           # Clean out leading 'v' characters to keep the formatting standard for the device's C++ parser
