@@ -129,6 +129,12 @@ jobs:
           cp config-repo/index.html final-pages-site/
           cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
           cp config-repo/display/manifest.json final-pages-site/display/manifest.json
+          
+          # CACHE BUSTER: Appends a dynamic tracking query parameter right into the manifest paths
+          # This forces GitHub's CDN edge servers to completely drop old cached binary files instantly
+          TIMESTAMP_CACHE=$(date +%s)
+          sed -i "s|\.bin|\.bin?v=${TIMESTAMP_CACHE}|g" final-pages-site/controller/manifest.json
+          sed -i "s|\.bin|\.bin?v=${TIMESTAMP_CACHE}|g" final-pages-site/display/manifest.json
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
