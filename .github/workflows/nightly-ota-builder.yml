@@ -65,7 +65,7 @@ jobs:
           echo "firmware_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
           
           # Overwrite version.txt with the explicit hash string
-          echo "$FINAL_VERSION" > version.txt
+          echo "v$FINAL_VERSION" > version.txt
           cd ..
 
       - name: Setup Node.js (Required for Web UI)
