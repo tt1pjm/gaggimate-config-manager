@@ -29,26 +29,36 @@ jobs:
           fetch-depth: 0    # Pulls all historical data layers
           tags: true        # Includes original project version markers
 
-      # FUTURE-PROOF: Removes all hardcoded fallbacks by explicitly excluding local release tags
+      # FUTURE-PROOF: Reads the clean version straight from project configuration files
       - name: Inject Custom Version Metadata
         id: version_vars
         run: |
           cd gaggimate-src
           
-          # 1. Pull the absolute latest real milestone release tag from upstream, explicitly ignoring our local 'nightly' tag
-          UPSTREAM_VERSION=$(git describe --tags --abbrev=0 --exclude "nightly*" 2>/dev/null)
+          # 1. Parse the explicit project version string out of the platformio.ini text configuration file
+          UPSTREAM_VERSION=$(grep -m 1 "version =" platformio.ini | awk -F'"' '{print $2}')
+          
+          # Fallback check if the key syntax varies slightly across upstream branch updates
+          if [ -z "$UPSTREAM_VERSION" ]; then
+            UPSTREAM_VERSION=$(grep -m 1 "version" platformio.ini | awk '{print $3}' | tr -d '"')
+          fi
+          
+          # Ultimate safety fallback if platformio.ini is completely unreadable
+          if [ -z "$UPSTREAM_VERSION" ]; then
+            UPSTREAM_VERSION="1.8.1"
+          fi
           
           # 2. Extract the local 7-character short commit hash of the snapshot we are compiling
           COMMIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "custom")
           
-          # Strip the leading 'v' and any special characters to keep the formatting clean for the device's C++ parser
-          VERSION_STRING=$(echo "$UPSTREAM_VERSION" | sed 's/^v//g' | sed 's/[^a-zA-Z0-9.-]//g')
+          # Strip out any potential stray formatting symbols to keep the string safe for the C++ compiler
+          VERSION_CLEAN=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9.-]//g')
           
           # 3. Assemble the standard Gaggimate format version string using our dynamic indicators
           # Structure: version - run_number - git_hash - dirty modifier
-          FINAL_VERSION="${VERSION_STRING}-${{ github.run_number }}-g${COMMIT_HASH}-dirty"
+          FINAL_VERSION="${VERSION_CLEAN}-${{ github.run_number }}-g${COMMIT_HASH}-dirty"
           
-          echo "Discovered Core Upstream Version Tag: $UPSTREAM_VERSION"
+          echo "Discovered Core Upstream Version Baseline: $VERSION_CLEAN"
           echo "Assembled Standalone Target Version String: $FINAL_VERSION"
           
           echo "firmware_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
