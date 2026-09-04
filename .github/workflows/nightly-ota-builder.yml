@@ -95,24 +95,20 @@ jobs:
           # DYNAMIC EXTRACTION: Safely extracts whichever macro tag the native C++ scripts generate
           EXTRACTED_VERSION=""
           if [ -f "src/generated/version.h" ]; then
-            # Checks for GAGGIMATE_VERSION or FIRMWARE_VERSION defines inside the generated file
             EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" src/generated/version.h | head -n 1 | awk -F'"' '{print $2}')
           fi
           
-          # If the generated file read is empty, parse the exact baseline version string 
-          # directly from the common version configuration file to prevent git parent overlaps
-          if [ -z "$EXTRACTED_VERSION" ]; then
-            if [ -f "src/common/version.h" ]; then
-              EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" src/common/version.h | head -n 1 | awk -F'"' '{print $2}')
-            fi
+          if [ -z "$EXTRACTED_VERSION" ] && [ -f "src/common/version.h" ]; then
+            EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" src/common/version.h | head -n 1 | awk -F'"' '{print $2}')
           fi
           
-          # Ultimate fail-safe backup tracking if all header lookups return empty
+          # FUTURE-PROOF FALLBACK: Queries the local git database inside the codebase subfolder context, 
+          # explicitly ignoring your local release tags to catch new upstream milestones automatically
           if [ -z "$EXTRACTED_VERSION" ]; then
-            EXTRACTED_VERSION="1.8.1-173-gfb8fa48b-dirty"
+            EXTRACTED_VERSION=$(git describe --tags --always --dirty --exclude "nightly*" 2>/dev/null)
           fi
           
-          # Clean out leading 'v' symbols to fit the application parser parameters perfectly
+          # Clean out leading 'v' characters to keep the formatting standard for the device's C++ parser
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
           
           # Writes the identical string used in compilation directly to your server deployment file
