@@ -105,10 +105,11 @@ jobs:
           
           cd gaggimate-src
           
-          # Force PlatformIO to drop old cached structural binaries out of memory
+          # Force clean target compilation
           pio run -e display -t clean
           pio run -e display
           
+          # EXTRACT COMPANION PIECES DIRECTLY INTO THE TARGET SITE DIRECTORY
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
@@ -116,6 +117,7 @@ jobs:
           pio run -e controller -t clean
           pio run -e controller
           
+          # Extract controller files
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
           cp .pio/build/controller/bootloader.bin ../final-pages-site/controller/bootloader.bin
           cp .pio/build/controller/partitions.bin ../final-pages-site/controller/partitions.bin
@@ -125,7 +127,7 @@ jobs:
           cp config-repo/controller/manifest.json final-pages-site/controller/manifest.json
           cp config-repo/display/manifest.json final-pages-site/display/manifest.json
           
-          # CACHE BUSTER: Invalidates the edge server cache definitions instantly
+          # CACHE BUSTER: Invalidates browser cache layers across the GitHub CDN
           TIMESTAMP_CACHE=$(date +%s)
           sed -i "s|\.bin|\.bin?v=${TIMESTAMP_CACHE}|g" final-pages-site/controller/manifest.json
           sed -i "s|\.bin|\.bin?v=${TIMESTAMP_CACHE}|g" final-pages-site/display/manifest.json
