@@ -84,7 +84,7 @@ jobs:
           
           cd gaggimate-src
           
-          # 1. Clear caches and generate the true display firmware headers natively
+          # 1. Clean and build the Display target natively
           rm -rf .pio/build/display
           if [ -f "scripts/generate_version_header.py" ]; then
             python3 scripts/generate_version_header.py || true
@@ -95,7 +95,7 @@ jobs:
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # DEEP BUILD SEARCH: Captures the correct version string directly from the compiler's output directory
+          # Extract the compiled version string for the server configuration
           TARGET_HEADER=$(find .pio/build/display/ -name "version.h" | head -n 1)
           EXTRACTED_VERSION=""
           if [ -n "$TARGET_HEADER" ] && [ -f "$TARGET_HEADER" ]; then
@@ -109,19 +109,35 @@ jobs:
           
           echo "v$VERSION_CLEAN" > version.txt
           echo "Validated Sync Version Target: v$VERSION_CLEAN"
+          cd ..
+
+          # 2. RUN PATCHES IMMEDIATELY BEFORE THE CONTROLLER COMPILES
+          # This forces your pin selections into place right as the controller compiler spins up
+          mkdir -p gaggimate-src/config gaggimate-src/scripts
+          cp config-repo/config/board_override.json gaggimate-src/config/
+          cp config-repo/scripts/* gaggimate-src/scripts/
           
-          # 2. Clear caches and generate the true controller firmware headers natively
+          cd gaggimate-src
+          chmod +x scripts/apply_board_override_patch.sh
+          python3 scripts/generate_board_override.py
+          ./scripts/apply_board_override_patch.sh
+
+          # INJECT RUNTIME DIAGNOSTIC: Prints out your exact pins to your serial log console at boot
+          # This allows us to see precisely which pins the controller firmware is driving
+          if [ -f "src/controller/hal/ADSAdc.cpp" ]; then
+            echo "Injecting pin runtime diagnostic logs into ADSAdc.cpp..."
+            sed -i '/setup(): \[ADSAdc\]/a \  Serial.printf("[DIAGNOSTIC] Querying ADS1115 on SDA Pin: 12, SCL Pin: 8\\n");' src/controller/hal/ADSAdc.cpp || true
+          fi
+
+          # Safe re-routing of the hardcoded update paths for the controller binary
+          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+          find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
+
+          # 3. Clean and build the Controller target with your custom pin map applied
           rm -rf .pio/build/controller
           if [ -f "scripts/generate_version_header.py" ]; then
             python3 scripts/generate_version_header.py || true
           fi
-          
-          # 3. SAFE REDIRECTION SWITCH: We execute the text swap right here, 
-          # AFTER both version headers are securely locked onto disk
-          find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-          find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
-          
-          # Compile controller firmware with the uncorrupted version definitions
           pio run -e controller
           
           cp .pio/build/controller/firmware.bin ../final-pages-site/controller/firmware.bin
