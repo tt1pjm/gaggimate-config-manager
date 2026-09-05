@@ -45,3 +45,10 @@ if [ -f "src/controller/hal/ADSAdc.cpp" ]; then
   echo "Injecting pin runtime diagnostic logs into ADSAdc.cpp..."
   sed -i '/setup(): \[ADSAdc\]/a \  Serial.printf("[DIAGNOSTIC] Querying ADS1115 on SDA Pin: %d, SCL Pin: %d\\n", GAGGIMATE_PRESSURE_SDA, GAGGIMATE_PRESSURE_SCL);' src/controller/hal/ADSAdc.cpp || true
 fi
+
+# Force the LED Controller initialisation loop to look at a hard structural exit
+# This prevents it from locking up benched I2C lines even if the board profile overrides the flag
+if [ -f "src/controller/hal/LedController.cpp" ]; then
+  echo "Injecting mandatory safety bypass into LedController.cpp for bench configurations..."
+  sed -i '/initialize(): \[LedController\]/a \  return false; \/* Hard Bench Bypass to prevent I2C Lockups *\/' src/controller/hal/LedController.cpp || true
+fi
