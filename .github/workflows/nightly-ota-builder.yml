@@ -124,8 +124,7 @@ jobs:
 
           # Global patches catch the implementation files anywhere they hide inside src/ or lib/ subfolders
           find . -type f \( -name "LedController.cpp" -o -name "led_controller.cpp" \) -exec sed -i '/void LedController::setup()/a \  return; \/* Hard Bench Bypass to prevent I2C Lockups *\/' {} + || true
-          find . -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.tpp" \) -exec sed -i 's|\.begin(0x48)|\.begin(0x48, \&Wire1)|g' {} + || true
-          find . -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.tpp" \) -exec sed -i 's|\.begin(ADS1X15_ADDRESS)|\.begin(ADS1X15_ADDRESS, \&Wire1)|g' {} + || true
+          find . -type f \( -name "ADSAdc.cpp" -o -name "ads_adc.cpp" \) -exec sed -i 's|\.begin([^)]*)|\.begin(0x48, \&Wire1)|g' {} + || true
           find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
           find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
 
