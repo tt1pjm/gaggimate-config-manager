@@ -46,9 +46,10 @@ if [ -f "src/controller/hal/ADSAdc.cpp" ]; then
   sed -i '/setup(): \[ADSAdc\]/a \  Serial.printf("[DIAGNOSTIC] Querying ADS1115 on SDA Pin: %d, SCL Pin: %d\\n", GAGGIMATE_PRESSURE_SDA, GAGGIMATE_PRESSURE_SCL);' src/controller/hal/ADSAdc.cpp || true
 fi
 
-# Force the LED Controller initialisation loop to look at a hard structural exit
-# This prevents it from locking up benched I2C lines even if the board profile overrides the flag
-if [ -f "src/controller/hal/LedController.cpp" ]; then
-  echo "Injecting mandatory safety bypass into LedController.cpp for bench configurations..."
-  sed -i '/initialize(): \[LedController\]/a \  return false; \/* Hard Bench Bypass to prevent I2C Lockups *\/' src/controller/hal/LedController.cpp || true
+# Force the ADS1115 setup routine to scan the correct overridden I2C sensor bus (Wire1)
+if [ -f "src/controller/hal/ADSAdc.cpp" ]; then
+  echo "Redirecting ADS1115 library initialization pointer to the custom Wire1 bus..."
+  sed -i 's/ads.begin(0x48)/ads.begin(0x48, \&Wire1)/g' src/controller/hal/ADSAdc.cpp || true
+  sed -i 's/ads.begin(ADS1X15_ADDRESS)/ads.begin(ADS1X15_ADDRESS, \&Wire1)/g' src/controller/hal/ADSAdc.cpp || true
 fi
+
