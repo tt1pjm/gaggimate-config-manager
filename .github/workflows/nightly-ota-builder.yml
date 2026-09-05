@@ -122,14 +122,10 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
 
-          # INJECT RUNTIME DIAGNOSTIC: Prints out your exact pins to your serial log console at boot
-          # This allows us to see precisely which pins the controller firmware is driving
-          if [ -f "src/controller/hal/ADSAdc.cpp" ]; then
-            echo "Injecting pin runtime diagnostic logs into ADSAdc.cpp..."
-            sed -i '/setup(): \[ADSAdc\]/a \  Serial.printf("[DIAGNOSTIC] Querying ADS1115 on SDA Pin: 12, SCL Pin: 8\\n");' src/controller/hal/ADSAdc.cpp || true
-          fi
-
-          # Safe re-routing of the hardcoded update paths for the controller binary
+          # Global patches catch the implementation files anywhere they hide inside src/ or lib/ subfolders
+          find . -type f \( -name "LedController.cpp" -o -name "led_controller.cpp" \) -exec sed -i '/initialize()/a \  return false; \/* Hard Bench Bypass to prevent I2C Lockups *\/' {} + || true
+          find . -type f \( -name "ADSAdc.cpp" -o -name "ads_adc.cpp" \) -exec sed -i 's|ads.begin(0x48)|ads.begin(0x48, \&Wire1)|g' {} + || true
+          find . -type f \( -name "ADSAdc.cpp" -o -name "ads_adc.cpp" \) -exec sed -i 's|ads.begin(ADS1X15_ADDRESS)|ads.begin(ADS1X15_ADDRESS, \&Wire1)|g' {} + || true
           find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
           find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
 
