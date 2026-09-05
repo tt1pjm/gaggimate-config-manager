@@ -39,3 +39,9 @@ if git status --porcelain -- "$FILE" >/dev/null 2>&1; then
     echo "No content changes detected for $FILE"
   fi
 fi
+
+# Injects a high-visibility serial print line right into the ADS setup block
+if [ -f "src/controller/hal/ADSAdc.cpp" ]; then
+  echo "Injecting pin runtime diagnostic logs into ADSAdc.cpp..."
+  sed -i '/setup(): \[ADSAdc\]/a \  Serial.printf("[DIAGNOSTIC] Querying ADS1115 on SDA Pin: %d, SCL Pin: %d\\n", GAGGIMATE_PRESSURE_SDA, GAGGIMATE_PRESSURE_SCL);' src/controller/hal/ADSAdc.cpp || true
+fi
