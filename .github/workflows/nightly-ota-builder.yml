@@ -122,9 +122,16 @@ jobs:
           python3 scripts/generate_board_override.py
           ./scripts/apply_board_override_patch.sh
 
-          # Global patches catch the implementation files anywhere they hide inside src/ or lib/ subfolders
-          find . -type f \( -name "LedController.cpp" -o -name "led_controller.cpp" \) -exec sed -i '/void LedController::setup()/a \  return; \/* Hard Bench Bypass to prevent I2C Lockups *\/' {} + || true
-          find . -type f \( -name "ADSAdc.cpp" -o -name "ads_adc.cpp" \) -exec sed -i 's|ads\.begin([^)]*)|ads.begin(0x48, \&Wire1)|g' {} + || true
+          # DYNAMIC BOOT LOG INJECTIONS: Force ungarbled, high-visibility pin verification metrics at setup
+          find . -type f \( -name "LedController.cpp" -o -name "led_controller.cpp" \) -exec sed -i '/void LedController::setup()/a \  return; \/* Hard Bench Bypass *\/' {} + || true
+          
+          # Injects the explicit pin verification logs straight into the main controller setup gate
+          if [ -f "src/controller/GaggiMateController.cpp" ]; then
+            echo "Injecting global pin runtime diagnostic logs..."
+            sed -i '/void GaggiMateController::setup()/a \  Serial.println("\\n======================================================="); Serial.printf("[DIAGNOSTIC] ACTIVE PRESSURE BUS -> SDA: %d, SCL: %d\\n", GAGGIMATE_PRESSURE_SDA, GAGGIMATE_PRESSURE_SCL); Serial.printf("[DIAGNOSTIC] ACTIVE PUMP DIMMER  -> GATE: %d, SENSE: %d\\n", GAGGIMATE_PUMP, GAGGIMATE_PUMP_SENSE); Serial.println("=======================================================\\n"); delay(500);' src/controller/GaggiMateController.cpp || true
+          fi
+          
+          # find . -type f \( -name "ADSAdc.cpp" -o -name "ads_adc.cpp" \) -exec sed -i 's|ads\.begin([^)]*)|ads.begin(0x48, \&Wire1)|g' {} + || true
           find src/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
           find lib/ -type f \( -name "*.cpp" -o -name "*.h" \) -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
 
