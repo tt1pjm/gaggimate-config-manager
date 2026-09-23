@@ -84,18 +84,34 @@ jobs:
           
           cd gaggimate-src
           
-          # 1. Clean and build the Display target natively
+          # =================================================================
+          # PROGRESSIVE BLOCK 1: Display Firmware
+          # =================================================================
           rm -rf .pio/build/display
           if [ -f "scripts/generate_version_header.py" ]; then
             python3 scripts/generate_version_header.py || true
           fi
+          
+          # Compile the main firmware logic
           pio run -e display
           
+          # Instantly copy out the healthy core firmware pieces
           cp .pio/build/display/firmware.bin ../final-pages-site/display/firmware.bin || cp .pio/build/LilyGo-T-RGB/firmware.bin ../final-pages-site/display/firmware.bin
           cp .pio/build/display/bootloader.bin ../final-pages-site/display/bootloader.bin || cp .pio/build/LilyGo-T-RGB/bootloader.bin ../final-pages-site/display/bootloader.bin
           cp .pio/build/display/partitions.bin ../final-pages-site/display/partitions.bin || cp .pio/build/LilyGo-T-RGB/partitions.bin ../final-pages-site/display/partitions.bin
           
-          # Extract the compiled version string for the server configuration
+          # =================================================================
+          # PROGRESSIVE BLOCK 2: Display File System Partition
+          # =================================================================
+          # Compile the separate LittleFS asset bundle safely
+          pio run -e display -t buildfs
+          
+          # Instantly copy out the healthy filesystem block asset
+          cp .pio/build/display/littlefs.bin ../final-pages-site/display/littlefs.bin || cp .pio/build/LilyGo-T-RGB/littlefs.bin ../final-pages-site/display/littlefs.bin
+          
+          # =================================================================
+          # PROGRESSIVE BLOCK 3: Version Extraction
+          # =================================================================
           TARGET_HEADER=$(find .pio/build/display/ -name "version.h" | head -n 1)
           EXTRACTED_VERSION=""
           if [ -n "$TARGET_HEADER" ] && [ -f "$TARGET_HEADER" ]; then
@@ -181,6 +197,9 @@ jobs:
           cp final-pages-site/display/bootloader.bin release-artifacts/display-bootloader.bin
           cp final-pages-site/display/partitions.bin release-artifacts/display-partitions.bin
 
+          # PACKAGES FILE SYSTEM TO YOUR STAGING RELEASE ARTIFACTS
+          cp final-pages-site/display/littlefs.bin release-artifacts/display-filesystem.bin
+          
       - name: Publish Custom OTA Release
         uses: softprops/action-gh-release@v2
         with:
