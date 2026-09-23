@@ -217,3 +217,4 @@ jobs:
             release-artifacts/display-firmware.bin
             release-artifacts/display-bootloader.bin
             release-artifacts/display-partitions.bin
+            release-artifacts/display-filesystem.bin
