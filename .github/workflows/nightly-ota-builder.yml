@@ -85,15 +85,15 @@ jobs:
           cd gaggimate-src
           
           # =================================================================
-          # PRE-BUILD VERSION CAPTURE: Direct tag extraction block
+          # PRE-BUILD VERSION CAPTURE: Isolated tag extraction with exclusion
           # =================================================================
-          # Forces the git engine to evaluate tag histories inside the repository root,
-          # capturing the true upstream tracking version automatically.
-          EXTRACTED_VERSION=$(git describe --tags --always --dirty 2>/dev/null)
+          # Explicitly excludes your repository's local tags to capture the
+          # true numeric upstream milestone metrics automatically.
+          EXTRACTED_VERSION=$(git describe --tags --always --dirty --exclude "nightly*" 2>/dev/null)
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
 
-          if [ -z "$VERSION_CLEAN" ]; then
-            echo "ERROR: Git failed to resolve the active repository tags."
+          if [ -z "$VERSION_CLEAN" ] || [ "$VERSION_CLEAN" = "nightly-dirty" ]; then
+            echo "ERROR: Git failed to isolate the numeric upstream tracking tags."
             exit 1
           fi
           
