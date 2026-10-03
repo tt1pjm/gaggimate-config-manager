@@ -85,25 +85,15 @@ jobs:
           cd gaggimate-src
           
           # =================================================================
-          # PRE-BUILD VERSION CAPTURE: Safe, native python script capture
+          # PRE-BUILD VERSION CAPTURE: Direct tag extraction block
           # =================================================================
-          # Dynamically generates the version data using Gaggimate's own script logic
-          if [ -f "scripts/generate_version_header.py" ]; then
-            python3 scripts/generate_version_header.py || true
-          fi
-
-          # Safely parses the exact macro variable written to the configuration files
-          TARGET_HEADER="src/generated/version.h"
-          EXTRACTED_VERSION=""
-          if [ -f "$TARGET_HEADER" ]; then
-            EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" "$TARGET_HEADER" | head -n 1 | awk -F'"' '{print $2}')
-          fi
-
-          # Clean out leading 'v' characters for text parser compatibility
+          # Forces the git engine to evaluate tag histories inside the repository root,
+          # capturing the true upstream tracking version automatically.
+          EXTRACTED_VERSION=$(git describe --tags --always --dirty 2>/dev/null)
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
 
           if [ -z "$VERSION_CLEAN" ]; then
-            echo "ERROR: Native script failed to generate a valid version header context."
+            echo "ERROR: Git failed to resolve the active repository tags."
             exit 1
           fi
           
