@@ -83,17 +83,27 @@ jobs:
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cd gaggimate-src
-                    
-          # =================================================================
-          # PRE-BUILD VERSION CAPTURE: Safe, dynamic extraction before compile
-          # =================================================================
-          # Queries git inside the codebase subfolder, explicitly matching only numeric tags
-          # to capture the true upstream milestone (e.g., 1.9.0-45...) automatically.
-          EXTRACTED_VERSION=$(git describe --tags --always --dirty --match "[0-9]*" 2>/dev/null)
-          VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
           
+          # =================================================================
+          # PRE-BUILD VERSION CAPTURE: Safe, native python script capture
+          # =================================================================
+          # Dynamically generates the version data using Gaggimate's own script logic
+          if [ -f "scripts/generate_version_header.py" ]; then
+            python3 scripts/generate_version_header.py || true
+          fi
+
+          # Safely parses the exact macro variable written to the configuration files
+          TARGET_HEADER="src/generated/version.h"
+          EXTRACTED_VERSION=""
+          if [ -f "$TARGET_HEADER" ]; then
+            EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" "$TARGET_HEADER" | head -n 1 | awk -F'"' '{print $2}')
+          fi
+
+          # Clean out leading 'v' characters for text parser compatibility
+          VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
+
           if [ -z "$VERSION_CLEAN" ]; then
-            echo "ERROR: Git failed to resolve the active version string context."
+            echo "ERROR: Native script failed to generate a valid version header context."
             exit 1
           fi
           
