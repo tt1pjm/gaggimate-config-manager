@@ -133,6 +133,7 @@ jobs:
           # FIXED TARGET LINE: Writes the text file cleanly into the current folder context
           echo "v$VERSION_CLEAN" > version.txt
           echo "Validated Sync Version Target: v$VERSION_CLEAN"
+          cd ..
 
           # 2. RUN PATCHES IMMEDIATELY BEFORE THE CONTROLLER COMPILES
           # This forces your pin selections into place right as the controller compiler spins up
