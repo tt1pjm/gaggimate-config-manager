@@ -83,6 +83,23 @@ jobs:
           mkdir -p final-pages-site/controller final-pages-site/display
           
           cd gaggimate-src
+                    
+          # =================================================================
+          # PRE-BUILD VERSION CAPTURE: Safe, dynamic extraction before compile
+          # =================================================================
+          # Queries git inside the codebase subfolder, explicitly matching only numeric tags
+          # to capture the true upstream milestone (e.g., 1.9.0-45...) automatically.
+          EXTRACTED_VERSION=$(git describe --tags --always --dirty --match "[0-9]*" 2>/dev/null)
+          VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
+          
+          if [ -z "$VERSION_CLEAN" ]; then
+            echo "ERROR: Git failed to resolve the active version string context."
+            exit 1
+          fi
+          
+          # Write the version file immediately to keep it safe for deployment
+          echo "v$VERSION_CLEAN" > version.txt
+          echo "Validated Sync Version Target: v$VERSION_CLEAN"
           
           # =================================================================
           # PROGRESSIVE BLOCK 1: Display Firmware
@@ -112,27 +129,11 @@ jobs:
           # =================================================================
           # PROGRESSIVE BLOCK 3: Version Extraction (Zero-Hardcoding Deep Search)
           # =================================================================
-          # Recursively scans the entire PlatformIO build directory tree 
-          # to capture the exact version header generated for the binary target
-          TARGET_HEADER=$(find .pio/build/ -name "version.h" | head -n 1)
-          EXTRACTED_VERSION=""
-          if [ -n "$TARGET_HEADER" ] && [ -f "$TARGET_HEADER" ]; then
-            echo "Found compiled version header asset at: $TARGET_HEADER"
-            EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" "$TARGET_HEADER" | head -n 1 | awk -F'"' '{print $2}')
-          fi
-          
-          # Clean out leading 'v' characters for text parser compatibility
-          VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
-          
-          # Force the step to fail visibly if it pulls an empty string to prevent silent errors
-          if [ -z "$VERSION_CLEAN" ] || [ "$VERSION_CLEAN" = "v" ]; then
-            echo "ERROR: Failed to dynamically extract the compiled firmware version!"
+          # Re-verifies the pre-captured version context string is present
+          if [ ! -f "version.txt" ]; then
+            echo "ERROR: Version synchronization file is missing from context!"
             exit 1
           fi
-          
-          # FIXED TARGET LINE: Writes the text file cleanly into the current folder context
-          echo "v$VERSION_CLEAN" > version.txt
-          echo "Validated Sync Version Target: v$VERSION_CLEAN"
           cd ..
 
           # 2. RUN PATCHES IMMEDIATELY BEFORE THE CONTROLLER COMPILES
