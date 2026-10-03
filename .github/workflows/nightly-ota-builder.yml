@@ -110,22 +110,22 @@ jobs:
           cp .pio/build/display/littlefs.bin ../final-pages-site/display/littlefs.bin || cp .pio/build/LilyGo-T-RGB/littlefs.bin ../final-pages-site/display/littlefs.bin
           
           # =================================================================
-          # PROGRESSIVE BLOCK 3: Version Extraction
+          # PROGRESSIVE BLOCK 3: Version Extraction (Zero-Hardcoding)
           # =================================================================
+          # Locates the exact version header compiled inside the display build tree
           TARGET_HEADER=$(find .pio/build/display/ -name "version.h" | head -n 1)
           EXTRACTED_VERSION=""
           if [ -n "$TARGET_HEADER" ] && [ -f "$TARGET_HEADER" ]; then
+            echo "Found compiled version header asset at: $TARGET_HEADER"
             EXTRACTED_VERSION=$(grep -E "GAGGIMATE_VERSION|FIRMWARE_VERSION" "$TARGET_HEADER" | head -n 1 | awk -F'"' '{print $2}')
           fi
           
+          # Clean out leading 'v' characters for text parser compatibility
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
-          if [ -z "$VERSION_CLEAN" ] || [ "$VERSION_CLEAN" = "v" ]; then
-            VERSION_CLEAN="1.8.1-174-g61cacea5-dirty"
-          fi
           
-          echo "v$VERSION_CLEAN" > version.txt
+          # Writes the identical string used in compilation directly to your server deployment file
+          echo "v$VERSION_CLEAN" > gaggimate-src/version.txt
           echo "Validated Sync Version Target: v$VERSION_CLEAN"
-          cd ..
 
           # 2. RUN PATCHES IMMEDIATELY BEFORE THE CONTROLLER COMPILES
           # This forces your pin selections into place right as the controller compiler spins up
