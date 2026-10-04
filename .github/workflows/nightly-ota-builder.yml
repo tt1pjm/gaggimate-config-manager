@@ -85,18 +85,18 @@ jobs:
           cd gaggimate-src
           
           # =================================================================
-          # PRE-BUILD VERSION CAPTURE: Zero-Hardcoding Full Tag Alignment
+          # PRE-BUILD VERSION CAPTURE: Strict Numeric Tag Filtering
           # =================================================================
           # 1. Force the engine to fetch all upstream repository tags natively
-          # This pulls the true version tracking context into the runner workspace
           git fetch --tags --force 2>/dev/null || true
           
-          # 2. Extract the true numeric version string, ignoring your local nightly tags
-          EXTRACTED_VERSION=$(git describe --tags --always --dirty --exclude "nightly*" 2>/dev/null)
+          # 2. Extract the true version string by strictly matching only numeric tags
+          # This filters out 'nightly' and 'db-' prefixes completely and dynamically
+          EXTRACTED_VERSION=$(git describe --tags --always --dirty --match "v[0-9]*" 2>/dev/null)
           VERSION_CLEAN=$(echo "$EXTRACTED_VERSION" | sed 's/^v//g')
 
           if [ -z "$VERSION_CLEAN" ]; then
-            echo "ERROR: Git failed to dynamically resolve the tag history."
+            echo "ERROR: Git failed to isolate a valid numeric tracking tag."
             exit 1
           fi
           
