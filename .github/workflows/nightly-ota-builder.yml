@@ -27,26 +27,17 @@ jobs:
           path: gaggimate-src
           fetch-depth: 0 # MANDATORY: Fetches full history so git tag counts function natively
 
-      - name: Setup Node.js (Required for Web UI)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Build WebUI Frontend Assets
+      - name: Redirect WebUI Frontend Update Targets
         run: |
           cd gaggimate-src
-          if [ -d "web" ]; then
-            cd web
-            find . -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} +
-            npm ci
-            npm run build
-            cd ..
+          
+          # Inject your personal repository path into the pre-built UI asset files
+          if [ -d "src/display/webassets" ]; then
+            find src/display/webassets/ -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
           fi
           
-          mkdir -p src/display/webassets
-          if [ -f "scripts/build_webui.sh" ]; then
-            chmod +x scripts/build_webui.sh
-            ./scripts/build_webui.sh
+          if [ -d "data" ]; then
+            find data/ -type f -exec sed -i 's|jniebuhr/gaggimate|tt1pjm/gaggimate-config-manager|g' {} + || true
           fi
 
       - name: Inject and Apply Board Overrides Globally
